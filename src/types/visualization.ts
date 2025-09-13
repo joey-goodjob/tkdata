@@ -24,6 +24,8 @@ export interface Account {
   lastPublishTime: Date | null;     // 最新发布时间
   createdAt: Date;                  // 创建时间
   updatedAt: Date;                  // 更新时间
+  deletedAt?: Date | null;          // 删除时间（软删除）
+  isDeleted?: boolean;              // 是否已删除（计算属性）
 }
 
 // 账号详细信息（包含作品列表）
@@ -52,6 +54,7 @@ export interface AccountWork {
 export interface AccountFilters {
   search?: string;                  // 搜索关键词
   status?: AccountStatus | 'unset' | 'all'; // 状态筛选
+  deleted?: 'active' | 'deleted' | 'all'; // 删除状态筛选
   minWorks?: number;               // 最少作品数
   maxWorks?: number;               // 最多作品数
   minPlays?: number;               // 最少播放量

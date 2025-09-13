@@ -58,14 +58,15 @@ export class DatabaseSetup {
    */
   async setupTrackingFields(): Promise<boolean> {
     try {
-      console.log('🔍 验证和创建数据溯源追踪字段...');
+      console.log('🔍 验证和创建数据溯源追踪字段（包含删除标记字段）...');
 
       // 检查需要添加的字段
       const fieldsToCheck = [
         { name: 'classification_source', type: 'varchar(20)', defaultValue: "'import'" },
         { name: 'classification_time', type: 'timestamp', defaultValue: null },
         { name: 'last_import_time', type: 'timestamp', defaultValue: 'CURRENT_TIMESTAMP' },
-        { name: 'manual_classified', type: 'boolean', defaultValue: 'FALSE' }
+        { name: 'manual_classified', type: 'boolean', defaultValue: 'FALSE' },
+        { name: 'deleted_at', type: 'timestamp', defaultValue: null }
       ];
 
       for (const field of fieldsToCheck) {
@@ -1124,7 +1125,7 @@ export class DatabaseSetup {
     try {
       console.log('🔍 验证数据溯源追踪字段状态...');
 
-      const trackingFields = ['classification_source', 'classification_time', 'last_import_time', 'manual_classified'];
+      const trackingFields = ['classification_source', 'classification_time', 'last_import_time', 'manual_classified', 'deleted_at'];
       
       for (const fieldName of trackingFields) {
         const result = await db.query(`

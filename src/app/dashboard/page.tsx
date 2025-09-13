@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { StatsOverview } from '@/components/StatsOverview';
+import { DashboardStats } from '@/components/DashboardStats';
+import { DashboardCharts } from '@/components/DashboardCharts';
 
 export default function DashboardPage() {
   const [currentTime, setCurrentTime] = useState<string>('');
@@ -43,8 +45,14 @@ export default function DashboardPage() {
 
       {/* 主要内容区域 */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Dashboard统计模块 */}
+        <DashboardStats className="mb-8" />
+        
         {/* 统计概览组件 */}
         <StatsOverview className="mb-8" />
+        
+        {/* Dashboard图表组件 */}
+        <DashboardCharts className="mb-8" />
 
         {/* 快速操作卡片 */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">

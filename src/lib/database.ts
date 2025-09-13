@@ -255,6 +255,20 @@ export class DatabaseService {
 
   // 单行数据插入
   private async insertSingleRow(client: any, row: TiktokRawData): Promise<void> {
+    // 检查该账号是否已被删除
+    if (row.author) {
+      const deletedCheck = await client.query(`
+        SELECT author FROM tiktok_videos_raw 
+        WHERE author = $1 AND deleted_at IS NOT NULL
+        LIMIT 1
+      `, [row.author]);
+      
+      if (deletedCheck.rows.length > 0) {
+        console.log(`⚠️  跳过已删除账号: ${row.author}`);
+        return; // 跳过已删除的账号
+      }
+    }
+
     // 过滤掉undefined的字段
     const validFields = Object.entries(row)
       .filter(([_, value]) => value !== undefined && value !== null)
@@ -270,9 +284,9 @@ export class DatabaseService {
       throw new Error('没有有效的字段数据');
     }
 
-    // 添加时间戳字段
-    fields.push('created_at', 'updated_at');
-    values.push(new Date(), new Date());
+    // 添加时间戳和导入溯源字段
+    fields.push('created_at', 'updated_at', 'classification_source', 'last_import_time');
+    values.push(new Date(), new Date(), 'import', new Date());
 
     const placeholders = fields.map((_, index) => `$${index + 1}`).join(', ');
     

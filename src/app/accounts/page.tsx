@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import type { Account, AccountFilters, PaginatedResponse, AccountStatus } from '@/types';
+import type { Account, AccountFilters, AccountStatus } from '@/types';
 
 export default function AccountsPage() {
   // State管理
@@ -18,6 +18,7 @@ export default function AccountsPage() {
   // 筛选和搜索状态
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [deletedFilter, setDeletedFilter] = useState<string>('active');
   const [sortBy, setSortBy] = useState('totalPlays');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   
@@ -28,6 +29,9 @@ export default function AccountsPage() {
   // 批量操作状态
   const [batchLoading, setBatchLoading] = useState(false);
   const [showBatchActions, setShowBatchActions] = useState(false);
+  
+  // 删除操作状态
+  const [deleteLoading, setDeleteLoading] = useState<string>('');
 
   // 获取账号列表
   const fetchAccounts = useCallback(async () => {
@@ -50,6 +54,10 @@ export default function AccountsPage() {
         params.set('status', statusFilter);
       }
 
+      if (deletedFilter) {
+        params.set('deleted', deletedFilter);
+      }
+
       const response = await fetch(`/api/accounts?${params}`);
       const data = await response.json();
 
@@ -66,7 +74,7 @@ export default function AccountsPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage, searchTerm, statusFilter, sortBy, sortOrder]);
+  }, [currentPage, itemsPerPage, searchTerm, statusFilter, deletedFilter, sortBy, sortOrder]);
 
   // 初始化和依赖更新时获取数据
   useEffect(() => {
@@ -139,6 +147,36 @@ export default function AccountsPage() {
     }
   };
 
+  // 删除单个账号
+  const deleteAccount = async (author: string, worksCount: number) => {
+    if (!confirm(`确定要删除账号 ${author} 吗？\n将删除该账号的 ${worksCount} 条作品数据`)) {
+      return;
+    }
+
+    try {
+      setDeleteLoading(author);
+
+      const response = await fetch(`/api/accounts/${encodeURIComponent(author)}/delete`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // 刷新列表
+        await fetchAccounts();
+        alert(`账号 ${author} 删除成功，共删除 ${data.data.deletedWorksCount} 条作品数据`);
+      } else {
+        throw new Error(data.message || '删除失败');
+      }
+    } catch (error) {
+      console.error('删除账号失败:', error);
+      alert(`删除失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    } finally {
+      setDeleteLoading('');
+    }
+  };
+
   // 处理选择操作
   const handleSelectAccount = (author: string) => {
     setSelectedAccounts(prev => 
@@ -170,7 +208,8 @@ export default function AccountsPage() {
   };
 
   // 获取状态显示
-  const getStatusDisplay = (status: AccountStatus | null) => {
+  const getStatusDisplay = (status: AccountStatus | null, isDeleted?: boolean) => {
+    if (isDeleted) return { text: '已删除', color: 'bg-red-100 text-red-800' };
     if (!status) return { text: '未分类', color: 'bg-gray-100 text-gray-800' };
     if (status === '成品号') return { text: '成品号', color: 'bg-green-100 text-green-800' };
     if (status === '半成品号') return { text: '半成品号', color: 'bg-yellow-100 text-yellow-800' };
@@ -285,7 +324,7 @@ export default function AccountsPage() {
       {/* 筛选和搜索区域 */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             {/* 搜索框 */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">搜索账号</label>
@@ -310,6 +349,20 @@ export default function AccountsPage() {
                 <option value="成品号">成品号</option>
                 <option value="半成品号">半成品号</option>
                 <option value="unclassified">未分类</option>
+              </select>
+            </div>
+
+            {/* 删除状态筛选 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">显示状态</label>
+              <select
+                value={deletedFilter}
+                onChange={(e) => setDeletedFilter(e.target.value)}
+                className="block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="active">仅活跃账号</option>
+                <option value="deleted">仅已删除</option>
+                <option value="all">全部账号</option>
               </select>
             </div>
 
@@ -440,10 +493,10 @@ export default function AccountsPage() {
               {/* 表格内容 */}
               <ul className="divide-y divide-gray-200">
                 {accounts.map((account, index) => {
-                  const statusDisplay = getStatusDisplay(account.status);
+                  const statusDisplay = getStatusDisplay(account.status, account.isDeleted);
                   
                   return (
-                    <li key={account.author} className="hover:bg-gray-50">
+                    <li key={account.author} className={`hover:bg-gray-50 ${account.isDeleted ? 'opacity-75' : ''}`}>
                       <div className="px-6 py-4">
                         <div className="flex items-center justify-between">
                           {/* 左侧信息 */}
@@ -481,15 +534,29 @@ export default function AccountsPage() {
 
                           {/* 右侧操作 */}
                           <div className="flex items-center space-x-2">
-                            <select
-                              value={account.status || ''}
-                              onChange={(e) => updateAccountStatus(account.author, e.target.value as AccountStatus || null)}
-                              className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                            >
-                              <option value="">未分类</option>
-                              <option value="成品号">成品号</option>
-                              <option value="半成品号">半成品号</option>
-                            </select>
+                            {!account.isDeleted ? (
+                              <>
+                                <select
+                                  value={account.status || ''}
+                                  onChange={(e) => updateAccountStatus(account.author, e.target.value as AccountStatus || null)}
+                                  className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                >
+                                  <option value="">未分类</option>
+                                  <option value="成品号">成品号</option>
+                                  <option value="半成品号">半成品号</option>
+                                </select>
+                                <button
+                                  onClick={() => deleteAccount(account.author, account.worksCount)}
+                                  disabled={deleteLoading === account.author}
+                                  className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title={`删除账号（${account.worksCount} 条作品）`}
+                                >
+                                  {deleteLoading === account.author ? '删除中...' : '删除'}
+                                </button>
+                              </>
+                            ) : (
+                              <span className="text-sm text-gray-500">已删除</span>
+                            )}
                           </div>
                         </div>
                       </div>

@@ -29,6 +29,16 @@ export async function GET(request: NextRequest) {
     let countParams: any[] = [];
     let paramIndex = 1;
 
+    // 获取删除状态筛选
+    const deletedFilter = searchParams.get('deleted') || 'active'; // active, deleted, all
+    
+    if (deletedFilter === 'active') {
+      whereConditions.push('deleted_at IS NULL');
+    } else if (deletedFilter === 'deleted') {
+      whereConditions.push('deleted_at IS NOT NULL');
+    }
+    // 如果是 'all'，不添加删除状态条件
+
     if (search) {
       whereConditions.push(`author ILIKE $${paramIndex}`);
       countParams.push(`%${search}%`);
@@ -70,6 +80,7 @@ export async function GET(request: NextRequest) {
       SELECT 
         author,
         author_status,
+        deleted_at,
         COUNT(*) as works_count,
         SUM(COALESCE(play_count, 0)) as total_plays,
         SUM(COALESCE(like_count, 0)) as total_likes,
@@ -82,7 +93,7 @@ export async function GET(request: NextRequest) {
         COUNT(CASE WHEN play_count >= 100000 THEN 1 END) as high_performance_works
       FROM tiktok_videos_raw 
       WHERE ${whereClause}
-      GROUP BY author, author_status
+      GROUP BY author, author_status, deleted_at
       ORDER BY ${sortField} ${order}
       LIMIT $${limitIndex} OFFSET $${offsetIndex}
     `;
@@ -122,7 +133,9 @@ export async function GET(request: NextRequest) {
         (parseInt(row.total_plays) / 10000) * 0.4 +
         (parseInt(row.total_likes) / 1000) * 0.3 +
         (parseInt(row.works_count) / 10) * 0.3
-      )
+      ),
+      deletedAt: row.deleted_at ? new Date(row.deleted_at) : null,
+      isDeleted: !!row.deleted_at
     }));
 
     // 分页信息
