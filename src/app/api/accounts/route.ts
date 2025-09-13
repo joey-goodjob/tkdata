@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database';
-import type { ApiResponse, Account, AccountFilters, PaginatedResponse } from '@/types';
+import type { ApiResponse, Account, AccountFilters, PaginatedResponse, PaginationInfo } from '@/types';
 
 /**
  * GET /api/accounts
@@ -119,33 +119,28 @@ export async function GET(request: NextRequest) {
       totalLikes: parseInt(row.total_likes),
       totalComments: parseInt(row.total_comments),
       totalShares: parseInt(row.total_shares),
+      totalCollects: 0, // 数据库中暂无此字段，设为0
       avgPlays: Math.round(parseFloat(row.avg_plays)),
       avgLikes: Math.round(parseFloat(row.avg_likes)),
-      firstUpload: new Date(row.first_upload),
-      lastUpload: new Date(row.last_upload),
-      highPerformanceWorks: parseInt(row.high_performance_works),
-      // 计算派生字段
-      engagementRate: parseInt(row.total_plays) > 0 
-        ? parseFloat(((parseInt(row.total_likes) + parseInt(row.total_comments) + parseInt(row.total_shares)) / parseInt(row.total_plays) * 100).toFixed(2))
-        : 0,
-      isActive: (new Date().getTime() - new Date(row.last_upload).getTime()) < (30 * 24 * 60 * 60 * 1000), // 30天内有更新
-      performanceScore: Math.round(
-        (parseInt(row.total_plays) / 10000) * 0.4 +
-        (parseInt(row.total_likes) / 1000) * 0.3 +
-        (parseInt(row.works_count) / 10) * 0.3
-      ),
+      avgComments: Math.round(parseFloat(row.total_comments) / parseInt(row.works_count)) || 0,
+      fansCount: null, // 数据库中暂无此字段
+      firstPublishTime: new Date(row.first_upload),
+      lastPublishTime: new Date(row.last_upload),
+      createdAt: new Date(row.first_upload), // 使用first_upload作为创建时间
+      updatedAt: new Date(row.last_upload), // 使用last_upload作为更新时间
       deletedAt: row.deleted_at ? new Date(row.deleted_at) : null,
       isDeleted: !!row.deleted_at
     }));
 
     // 分页信息
     const totalPages = Math.ceil(total / limit);
-    const paginationInfo = {
-      page,
-      limit,
-      totalPages,
+    const paginationInfo: PaginationInfo = {
+      current: page,
+      total: total,
+      pageSize: limit,
+      totalPages: totalPages,
       hasNext: page < totalPages,
-      hasPrevious: page > 1
+      hasPrev: page > 1
     };
 
     const response: ApiResponse<PaginatedResponse<Account>> = {

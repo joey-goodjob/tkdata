@@ -10,17 +10,52 @@ class DatabaseConnection {
       throw new Error('DATABASE_URL environment variable is not set');
     }
 
+    // 检测运行环境
+    const isProduction = process.env.NODE_ENV === 'production';
+    const isVercel = process.env.VERCEL === '1';
+    
+    console.log(`🔧 初始化数据库连接池 - 环境: ${isProduction ? '生产' : '开发'}, Vercel: ${isVercel}`);
+
     this.pool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      max: 20, // 最大连接数
-      idleTimeoutMillis: 30000, // 空闲超时时间
-      connectionTimeoutMillis: 2000, // 连接超时时间
+      // Vercel优化配置
+      max: isVercel ? 5 : 20, // Vercel环境减少连接数
+      min: isVercel ? 1 : 2, // 最小连接数
+      idleTimeoutMillis: isVercel ? 60000 : 30000, // Vercel环境延长空闲时间
+      connectionTimeoutMillis: isVercel ? 25000 : 5000, // Vercel环境25秒连接超时
+      
+      // SSL配置
+      ssl: isProduction ? { 
+        rejectUnauthorized: false 
+      } : false,
+      
+      // 应用标识
+      application_name: isVercel ? 'tkdata-vercel' : 'tkdata-local',
+      
+      // 连接保活（Vercel环境特别重要）
+      keepAlive: true,
+      keepAliveInitialDelayMillis: isVercel ? 5000 : 10000,
     });
 
     // 监听连接池错误
     this.pool.on('error', (err) => {
-      console.error('Unexpected error on idle client', err);
+      console.error('❌ 数据库连接池错误:', err.message);
     });
+
+    // Vercel环境下添加更多监听
+    if (isVercel) {
+      this.pool.on('connect', (client) => {
+        console.log('🔗 Vercel环境建立数据库连接');
+      });
+      
+      this.pool.on('acquire', (client) => {
+        console.log('📥 Vercel环境获取连接');
+      });
+      
+      this.pool.on('release', (client) => {
+        console.log('📤 Vercel环境释放连接');
+      });
+    }
   }
 
   public static getInstance(): DatabaseConnection {
@@ -35,13 +70,83 @@ class DatabaseConnection {
   }
 
   public async query(text: string, params?: any[]) {
-    const client = await this.getClient();
-    try {
-      const result = await client.query(text, params);
-      return result;
-    } finally {
-      client.release();
+    const isVercel = process.env.VERCEL === '1';
+    const maxRetries = isVercel ? 3 : 1;
+    const queryTimeout = isVercel ? 20000 : 10000; // Vercel环境20秒查询超时
+    
+    let lastError: any;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      let client: PoolClient | null = null;
+      
+      try {
+        console.log(`🔍 数据库查询尝试 ${attempt}/${maxRetries} ${isVercel ? '(Vercel)' : '(Local)'}`);
+        const startTime = Date.now();
+        
+        // 获取连接，带超时保护
+        client = await Promise.race([
+          this.getClient(),
+          new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('获取数据库连接超时')), 
+              isVercel ? 20000 : 10000)
+          )
+        ]);
+        
+        // 执行查询，带超时保护
+        const result = await Promise.race([
+          client.query(text, params),
+          new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('数据库查询执行超时')), queryTimeout)
+          )
+        ]);
+        
+        const duration = Date.now() - startTime;
+        console.log(`✅ 数据库查询成功 ${isVercel ? '(Vercel)' : '(Local)'} - ${duration}ms`);
+        
+        return result;
+        
+      } catch (error: any) {
+        lastError = error;
+        const duration = Date.now() - (Date.now());
+        console.error(`❌ 数据库查询尝试 ${attempt} 失败 ${isVercel ? '(Vercel)' : '(Local)'}:`, error.message);
+        
+        // 在最后一次尝试或非网络错误时，直接抛出错误
+        if (attempt === maxRetries || !this.isRetryableError(error)) {
+          throw error;
+        }
+        
+        // 重试前等待（指数退避）
+        const retryDelay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+        console.log(`⏳ ${retryDelay}ms 后重试...`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+        
+      } finally {
+        if (client) {
+          try {
+            client.release();
+          } catch (releaseError) {
+            console.error('❌ 释放数据库连接失败:', releaseError);
+          }
+        }
+      }
     }
+    
+    throw lastError;
+  }
+
+  private isRetryableError(error: any): boolean {
+    const retryableErrors = [
+      'Connection terminated',
+      'Connection timeout',
+      'timeout exceeded',
+      'ECONNRESET',
+      'ENOTFOUND',
+      'ETIMEDOUT',
+      'connection terminated unexpectedly'
+    ];
+    
+    const errorMessage = error.message?.toLowerCase() || '';
+    return retryableErrors.some(err => errorMessage.includes(err.toLowerCase()));
   }
 
   public async testConnection(): Promise<boolean> {

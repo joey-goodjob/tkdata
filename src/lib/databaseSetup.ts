@@ -1038,7 +1038,7 @@ export class DatabaseSetup {
           }
 
         } catch (error) {
-          console.error(`   ❌ 测试失败: ${error.message}`);
+          console.error(`   ❌ 测试失败: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
 

@@ -56,7 +56,8 @@ export type ID = string | number;
 export type {
   PaginationInfo,
   PaginationParams,
-  PaginationProps
+  PaginationProps,
+  PaginatedResponse
 } from './visualization';
 
 // 账号相关类型快捷导出

@@ -3,6 +3,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Account, AccountFilters, AccountStatus } from '@/types';
 
+// 禁用静态生成
+export const dynamic = 'force-dynamic';
+
 export default function AccountsPage() {
   // State管理
   const [accounts, setAccounts] = useState<Account[]>([]);

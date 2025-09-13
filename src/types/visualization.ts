@@ -85,6 +85,13 @@ export interface PaginationInfo {
   hasPrev: boolean;                 // 是否有上一页
 }
 
+// 通用分页响应类型
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: PaginationInfo;
+  total: number;
+}
+
 // API响应类型 - 账号列表
 export interface AccountsResponse {
   success: boolean;
