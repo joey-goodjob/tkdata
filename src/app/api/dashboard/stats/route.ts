@@ -27,16 +27,14 @@ export async function GET(request: NextRequest) {
       db.query(`
         SELECT COUNT(DISTINCT author) as count
         FROM tiktok_videos_raw 
-        WHERE deleted_at IS NULL
-          AND author IS NOT NULL
+        WHERE author IS NOT NULL
       `),
       
       // 2. 成品账号数
       db.query(`
         SELECT COUNT(DISTINCT author) as count
         FROM tiktok_videos_raw 
-        WHERE deleted_at IS NULL
-          AND author IS NOT NULL
+        WHERE author IS NOT NULL
           AND author_status = '成品号'
       `),
       
@@ -46,8 +44,7 @@ export async function GET(request: NextRequest) {
         FROM (
           SELECT author, SUM(COALESCE(play_count, 0)) as total_plays
           FROM tiktok_videos_raw 
-          WHERE deleted_at IS NULL
-            AND author IS NOT NULL
+          WHERE author IS NOT NULL
             AND author_status = '成品号'
           GROUP BY author
           HAVING SUM(COALESCE(play_count, 0)) >= 1000
@@ -60,8 +57,7 @@ export async function GET(request: NextRequest) {
         FROM (
           SELECT author, SUM(COALESCE(play_count, 0)) as total_plays
           FROM tiktok_videos_raw 
-          WHERE deleted_at IS NULL
-            AND author IS NOT NULL
+          WHERE author IS NOT NULL
             AND author_status = '半成品号'
           GROUP BY author
           HAVING SUM(COALESCE(play_count, 0)) >= 1000

@@ -1,9 +1,75 @@
 import { Pool, PoolClient } from 'pg';
 
+// 查询队列管理器
+class QueryQueue {
+  private runningQueries = 0;
+  private readonly maxConcurrentQueries: number;
+  private waitingQueue: Array<{
+    resolve: (value: any) => void;
+    reject: (reason?: any) => void;
+    queryFn: () => Promise<any>;
+    priority: number;
+  }> = [];
+
+  constructor(maxConcurrentQueries: number = 10) {
+    this.maxConcurrentQueries = maxConcurrentQueries;
+  }
+
+  async executeQuery<T>(
+    queryFn: () => Promise<T>,
+    priority: number = 0
+  ): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const queryItem = { resolve, reject, queryFn, priority };
+
+      if (this.runningQueries < this.maxConcurrentQueries) {
+        this.executeImmediately(queryItem);
+      } else {
+        // 按优先级排序插入队列
+        this.waitingQueue.push(queryItem);
+        this.waitingQueue.sort((a, b) => b.priority - a.priority);
+        
+        console.log(`📋 查询加入队列，当前运行: ${this.runningQueries}/${this.maxConcurrentQueries}, 队列长度: ${this.waitingQueue.length}`);
+      }
+    });
+  }
+
+  private async executeImmediately(queryItem: any) {
+    this.runningQueries++;
+    
+    try {
+      const result = await queryItem.queryFn();
+      queryItem.resolve(result);
+    } catch (error) {
+      queryItem.reject(error);
+    } finally {
+      this.runningQueries--;
+      this.processNext();
+    }
+  }
+
+  private processNext() {
+    if (this.waitingQueue.length > 0 && this.runningQueries < this.maxConcurrentQueries) {
+      const nextQuery = this.waitingQueue.shift()!;
+      this.executeImmediately(nextQuery);
+    }
+  }
+
+  getStats() {
+    return {
+      running: this.runningQueries,
+      maxConcurrent: this.maxConcurrentQueries,
+      waiting: this.waitingQueue.length,
+      utilizationRate: (this.runningQueries / this.maxConcurrentQueries * 100).toFixed(1) + '%'
+    };
+  }
+}
+
 // 数据库连接池单例
 class DatabaseConnection {
   private static instance: DatabaseConnection;
   private pool: Pool;
+  private queryQueue: QueryQueue;
 
   private constructor() {
     if (!process.env.DATABASE_URL) {
@@ -16,13 +82,21 @@ class DatabaseConnection {
     
     console.log(`🔧 初始化数据库连接池 - 环境: ${isProduction ? '生产' : '开发'}, Vercel: ${isVercel}`);
 
+    // 初始化查询队列管理器（Vercel环境更保守的并发数）
+    this.queryQueue = new QueryQueue(isVercel ? 8 : 15);
+
     this.pool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      // Vercel优化配置
-      max: isVercel ? 5 : 20, // Vercel环境减少连接数
-      min: isVercel ? 1 : 2, // 最小连接数
-      idleTimeoutMillis: isVercel ? 60000 : 30000, // Vercel环境延长空闲时间
-      connectionTimeoutMillis: isVercel ? 25000 : 5000, // Vercel环境25秒连接超时
+      // 优化后的连接池配置
+      max: 20, // 统一设置为20个连接
+      min: 2, // 最小保持2个连接
+      idleTimeoutMillis: 30000, // 30秒空闲超时
+      connectionTimeoutMillis: 30000, // 30秒连接超时
+      acquireTimeoutMillis: 30000, // 30秒获取连接超时
+      
+      // 查询和语句超时配置
+      query_timeout: 25000, // 25秒查询超时
+      statement_timeout: 25000, // 25秒语句超时
       
       // SSL配置
       ssl: isProduction ? { 
@@ -32,9 +106,12 @@ class DatabaseConnection {
       // 应用标识
       application_name: isVercel ? 'tkdata-vercel' : 'tkdata-local',
       
-      // 连接保活（Vercel环境特别重要）
+      // 连接保活配置
       keepAlive: true,
-      keepAliveInitialDelayMillis: isVercel ? 5000 : 10000,
+      keepAliveInitialDelayMillis: 10000, // 10秒后开始保活检查
+      
+      // 连接验证
+      allowExitOnIdle: false, // 防止池在空闲时退出
     });
 
     // 监听连接池错误
@@ -69,69 +146,71 @@ class DatabaseConnection {
     return this.pool.connect();
   }
 
-  public async query(text: string, params?: any[]) {
-    const isVercel = process.env.VERCEL === '1';
-    const maxRetries = isVercel ? 3 : 1;
-    const queryTimeout = isVercel ? 20000 : 10000; // Vercel环境20秒查询超时
-    
-    let lastError: any;
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      let client: PoolClient | null = null;
+  public async query(text: string, params?: any[], priority: number = 0) {
+    // 使用查询队列管理并发
+    return await this.queryQueue.executeQuery(async () => {
+      const isVercel = process.env.VERCEL === '1';
+      const maxRetries = isVercel ? 3 : 1;
+      const queryTimeout = 25000; // 25秒查询超时
       
-      try {
-        console.log(`🔍 数据库查询尝试 ${attempt}/${maxRetries} ${isVercel ? '(Vercel)' : '(Local)'}`);
-        const startTime = Date.now();
+      let lastError: any;
+      
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        let client: PoolClient | null = null;
         
-        // 获取连接，带超时保护
-        client = await Promise.race([
-          this.getClient(),
-          new Promise<never>((_, reject) => 
-            setTimeout(() => reject(new Error('获取数据库连接超时')), 
-              isVercel ? 20000 : 10000)
-          )
-        ]);
-        
-        // 执行查询，带超时保护
-        const result = await Promise.race([
-          client.query(text, params),
-          new Promise<never>((_, reject) => 
-            setTimeout(() => reject(new Error('数据库查询执行超时')), queryTimeout)
-          )
-        ]);
-        
-        const duration = Date.now() - startTime;
-        console.log(`✅ 数据库查询成功 ${isVercel ? '(Vercel)' : '(Local)'} - ${duration}ms`);
-        
-        return result;
-        
-      } catch (error: any) {
-        lastError = error;
-        const duration = Date.now() - (Date.now());
-        console.error(`❌ 数据库查询尝试 ${attempt} 失败 ${isVercel ? '(Vercel)' : '(Local)'}:`, error.message);
-        
-        // 在最后一次尝试或非网络错误时，直接抛出错误
-        if (attempt === maxRetries || !this.isRetryableError(error)) {
-          throw error;
-        }
-        
-        // 重试前等待（指数退避）
-        const retryDelay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-        console.log(`⏳ ${retryDelay}ms 后重试...`);
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
-        
-      } finally {
-        if (client) {
-          try {
-            client.release();
-          } catch (releaseError) {
-            console.error('❌ 释放数据库连接失败:', releaseError);
+        try {
+          const queueStats = this.queryQueue.getStats();
+          console.log(`🔍 数据库查询尝试 ${attempt}/${maxRetries} ${isVercel ? '(Vercel)' : '(Local)'} - 队列状态: ${queueStats.utilizationRate}`);
+          const startTime = Date.now();
+          
+          // 获取连接，带超时保护
+          client = await Promise.race([
+            this.getClient(),
+            new Promise<never>((_, reject) => 
+              setTimeout(() => reject(new Error('获取数据库连接超时')), 25000)
+            )
+          ]);
+          
+          // 执行查询，带超时保护
+          const result = await Promise.race([
+            client.query(text, params),
+            new Promise<never>((_, reject) => 
+              setTimeout(() => reject(new Error('数据库查询执行超时')), queryTimeout)
+            )
+          ]);
+          
+          const duration = Date.now() - startTime;
+          console.log(`✅ 数据库查询成功 ${isVercel ? '(Vercel)' : '(Local)'} - ${duration}ms`);
+          
+          return result;
+          
+        } catch (error: any) {
+          lastError = error;
+          console.error(`❌ 数据库查询尝试 ${attempt} 失败 ${isVercel ? '(Vercel)' : '(Local)'}:`, error.message);
+          
+          // 在最后一次尝试或非网络错误时，直接抛出错误
+          if (attempt === maxRetries || !this.isRetryableError(error)) {
+            throw error;
+          }
+          
+          // 重试前等待（指数退避）
+          const retryDelay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+          console.log(`⏳ ${retryDelay}ms 后重试...`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          
+        } finally {
+          if (client) {
+            try {
+              client.release();
+            } catch (releaseError) {
+              console.error('❌ 释放数据库连接失败:', releaseError);
+            }
           }
         }
       }
-    }
-    
-    throw lastError;
+      
+      throw lastError;
+    }, priority);
   }
 
   private isRetryableError(error: any): boolean {
@@ -162,6 +241,50 @@ class DatabaseConnection {
 
   public async close(): Promise<void> {
     await this.pool.end();
+  }
+
+  // 获取查询队列统计信息
+  public getQueryStats() {
+    return this.queryQueue.getStats();
+  }
+
+  // 获取连接池统计信息
+  public getPoolStats() {
+    return {
+      totalConnections: this.pool.totalCount,
+      idleConnections: this.pool.idleCount,
+      waitingConnections: this.pool.waitingCount,
+      connectionPoolSize: this.pool.options.max
+    };
+  }
+
+  // 连接健康检查
+  public async healthCheck(): Promise<{
+    database: boolean;
+    pool: any;
+    queue: any;
+    latency: number;
+  }> {
+    const startTime = Date.now();
+    
+    try {
+      await this.query('SELECT 1 as health_check', [], 10); // 高优先级健康检查
+      const latency = Date.now() - startTime;
+      
+      return {
+        database: true,
+        pool: this.getPoolStats(),
+        queue: this.getQueryStats(),
+        latency
+      };
+    } catch (error) {
+      return {
+        database: false,
+        pool: this.getPoolStats(),
+        queue: this.getQueryStats(),
+        latency: Date.now() - startTime
+      };
+    }
   }
 }
 
@@ -360,19 +483,8 @@ export class DatabaseService {
 
   // 单行数据插入
   private async insertSingleRow(client: any, row: TiktokRawData): Promise<void> {
-    // 检查该账号是否已被删除
-    if (row.author) {
-      const deletedCheck = await client.query(`
-        SELECT author FROM tiktok_videos_raw 
-        WHERE author = $1 AND deleted_at IS NOT NULL
-        LIMIT 1
-      `, [row.author]);
-      
-      if (deletedCheck.rows.length > 0) {
-        console.log(`⚠️  跳过已删除账号: ${row.author}`);
-        return; // 跳过已删除的账号
-      }
-    }
+    // 注意：生产环境暂不支持deleted_at字段，跳过删除状态检查
+    // 如果需要软删除功能，请先在数据库中添加deleted_at字段
 
     // 过滤掉undefined的字段
     const validFields = Object.entries(row)

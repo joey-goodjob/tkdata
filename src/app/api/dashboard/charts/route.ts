@@ -43,8 +43,7 @@ export async function GET(request: NextRequest) {
             DATE(publish_time) as date,
             SUM(COALESCE(play_count, 0)) as author_daily_plays
           FROM tiktok_videos_raw 
-          WHERE deleted_at IS NULL
-            AND author IS NOT NULL
+          WHERE author IS NOT NULL
             AND author_status = '成品号'
             AND publish_time >= CURRENT_DATE - INTERVAL '${days} days'
           GROUP BY author, DATE(publish_time)
@@ -67,8 +66,7 @@ export async function GET(request: NextRequest) {
             DATE(publish_time) as date,
             SUM(COALESCE(play_count, 0)) as author_daily_plays
           FROM tiktok_videos_raw 
-          WHERE deleted_at IS NULL
-            AND author IS NOT NULL
+          WHERE author IS NOT NULL
             AND author_status = '半成品号'
             AND publish_time >= CURRENT_DATE - INTERVAL '${days} days'
           GROUP BY author, DATE(publish_time)
@@ -89,8 +87,7 @@ export async function GET(request: NextRequest) {
           DATE(publish_time) as date,
           COUNT(*) as video_count
         FROM tiktok_videos_raw 
-        WHERE deleted_at IS NULL
-          AND author IS NOT NULL
+        WHERE author IS NOT NULL
           AND author_status = '成品号'
           AND publish_time >= CURRENT_DATE - INTERVAL '${days} days'
         GROUP BY DATE(publish_time)
@@ -103,8 +100,7 @@ export async function GET(request: NextRequest) {
           DATE(publish_time) as date,
           COUNT(*) as video_count
         FROM tiktok_videos_raw 
-        WHERE deleted_at IS NULL
-          AND author IS NOT NULL
+        WHERE author IS NOT NULL
           AND author_status = '半成品号'
           AND publish_time >= CURRENT_DATE - INTERVAL '${days} days'
         GROUP BY DATE(publish_time)
