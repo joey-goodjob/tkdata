@@ -1,63 +1,79 @@
-'use client';
+"use client";
 
-import React, { useEffect, useState } from 'react';
-import type { DashboardStats, TrendData, TopAccount } from '@/types';
+import React, { useEffect, useState } from "react";
+import type { DashboardStats, TrendData, TopAccount } from "@/types";
 
 interface StatsOverviewProps {
   className?: string;
+  onLoadComplete?: () => void; // 🔄 新增：加载完成回调
 }
 
-export function StatsOverview({ className = '' }: StatsOverviewProps) {
-  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
+export function StatsOverview({
+  className = "",
+  onLoadComplete,
+}: StatsOverviewProps) {
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(
+    null
+  );
   const [trendData, setTrendData] = useState<TrendData[]>([]);
   const [topAccounts, setTopAccounts] = useState<TopAccount[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string>('');
+  const [error, setError] = useState<string>("");
 
-  // 获取统计数据
+  // 获取统计数据 - 🔄 改为串行加载，减少数据库压力
   useEffect(() => {
     const fetchStats = async () => {
       try {
         setLoading(true);
-        
-        // 并行获取多个统计数据
-        const [dashboardResponse, trendsResponse, rankingsResponse] = await Promise.all([
-          fetch('/api/stats?type=dashboard'),
-          fetch('/api/stats?type=trends&days=7'),
-          fetch('/api/stats?type=rankings&sortBy=totalPlays&limit=5')
-        ]);
+        console.log("📊 [StatsOverview] 开始加载概览数据...");
 
+        // 🔄 串行加载：一个接一个地请求，避免同时占用多个数据库连接
+        console.log("  → 加载dashboard数据...");
+        const dashboardResponse = await fetch("/api/stats?type=dashboard");
         const dashboardData = await dashboardResponse.json();
-        const trendsData = await trendsResponse.json();
-        const rankingsData = await rankingsResponse.json();
-
         if (dashboardData.success) {
           setDashboardStats(dashboardData.data);
+          console.log("  ✅ dashboard数据加载完成");
         }
 
+        console.log("  → 加载趋势数据...");
+        const trendsResponse = await fetch("/api/stats?type=trends&days=7");
+        const trendsData = await trendsResponse.json();
         if (trendsData.success) {
           setTrendData(trendsData.data);
+          console.log("  ✅ 趋势数据加载完成");
         }
 
+        console.log("  → 加载排行数据...");
+        const rankingsResponse = await fetch(
+          "/api/stats?type=rankings&sortBy=totalPlays&limit=5"
+        );
+        const rankingsData = await rankingsResponse.json();
         if (rankingsData.success) {
           setTopAccounts(rankingsData.data);
+          console.log("  ✅ 排行数据加载完成");
         }
 
+        console.log("✅ [StatsOverview] 所有概览数据加载完成");
+        // 🔄 通知父组件加载完成
+        if (onLoadComplete) {
+          onLoadComplete();
+        }
       } catch (error) {
-        console.error('获取统计数据失败:', error);
-        setError('获取统计数据失败');
+        console.error("❌ [StatsOverview] 获取统计数据失败:", error);
+        setError("获取统计数据失败");
       } finally {
         setLoading(false);
       }
     };
 
     fetchStats();
-  }, []);
+  }, [onLoadComplete]);
 
   // 状态分布饼图组件
   const StatusPieChart = ({ data }: { data: DashboardStats }) => {
     const { statusDistribution, totalAccounts } = data;
-    
+
     if (!statusDistribution || statusDistribution.length === 0) {
       return <div className="text-gray-500 text-center py-8">暂无数据</div>;
     }
@@ -68,10 +84,10 @@ export function StatsOverview({ className = '' }: StatsOverviewProps) {
       const percentage = (parseInt(item.count) / totalAccounts) * 100;
       const startAngle = cumulativePercentage * 3.6; // 转换为度数
       const endAngle = (cumulativePercentage + percentage) * 3.6;
-      
+
       cumulativePercentage += percentage;
 
-      const colors = ['#10B981', '#F59E0B', '#6B7280']; // 绿色、黄色、灰色
+      const colors = ["#10B981", "#F59E0B", "#6B7280"]; // 绿色、黄色、灰色
       const color = colors[index % colors.length];
 
       return {
@@ -80,12 +96,16 @@ export function StatsOverview({ className = '' }: StatsOverviewProps) {
         startAngle,
         endAngle,
         color,
-        largeArcFlag: percentage > 50 ? 1 : 0
+        largeArcFlag: percentage > 50 ? 1 : 0,
       };
     });
 
     // 生成SVG路径
-    const generatePath = (startAngle: number, endAngle: number, largeArcFlag: number) => {
+    const generatePath = (
+      startAngle: number,
+      endAngle: number,
+      largeArcFlag: number
+    ) => {
       const centerX = 100;
       const centerY = 100;
       const radius = 80;
@@ -108,7 +128,11 @@ export function StatsOverview({ className = '' }: StatsOverviewProps) {
             {chartData.map((item, index) => (
               <path
                 key={item.status}
-                d={generatePath(item.startAngle, item.endAngle, item.largeArcFlag)}
+                d={generatePath(
+                  item.startAngle,
+                  item.endAngle,
+                  item.largeArcFlag
+                )}
                 fill={item.color}
                 stroke="white"
                 strokeWidth="2"
@@ -141,7 +165,7 @@ export function StatsOverview({ className = '' }: StatsOverviewProps) {
             </text>
           </svg>
         </div>
-        
+
         <div className="space-y-3">
           {chartData.map((item) => (
             <div key={item.status} className="flex items-center space-x-3">
@@ -151,7 +175,7 @@ export function StatsOverview({ className = '' }: StatsOverviewProps) {
               />
               <div className="flex-1">
                 <div className="text-sm font-medium text-gray-900">
-                  {item.status || '未分类'}
+                  {item.status || "未分类"}
                 </div>
                 <div className="text-xs text-gray-500">
                   {item.count} 个账号 ({item.percentage}%)
@@ -170,13 +194,13 @@ export function StatsOverview({ className = '' }: StatsOverviewProps) {
       return <div className="text-gray-500 text-center py-8">暂无数据</div>;
     }
 
-    const maxPlays = Math.max(...accounts.map(account => account.totalPlays));
-    
+    const maxPlays = Math.max(...accounts.map((account) => account.totalPlays));
+
     return (
       <div className="space-y-4">
         {accounts.map((account, index) => {
           const percentage = (account.totalPlays / maxPlays) * 100;
-          
+
           return (
             <div key={account.author} className="space-y-2">
               <div className="flex justify-between items-center">
@@ -184,19 +208,23 @@ export function StatsOverview({ className = '' }: StatsOverviewProps) {
                   <span className="text-sm font-medium text-gray-900 truncate max-w-32">
                     {account.author}
                   </span>
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    account.status === '成品号' ? 'bg-green-100 text-green-800' :
-                    account.status === '半成品号' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {account.status || '未分类'}
+                  <span
+                    className={`px-2 py-1 rounded text-xs font-medium ${
+                      account.status === "成品号"
+                        ? "bg-green-100 text-green-800"
+                        : account.status === "半成品号"
+                        ? "bg-yellow-100 text-yellow-800"
+                        : "bg-gray-100 text-gray-800"
+                    }`}
+                  >
+                    {account.status || "未分类"}
                   </span>
                 </div>
                 <div className="text-sm text-gray-600">
                   {formatNumber(account.totalPlays)} 播放
                 </div>
               </div>
-              
+
               <div className="w-full bg-gray-200 rounded-full h-3 relative overflow-hidden">
                 <div
                   className="h-3 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-300"
@@ -204,7 +232,7 @@ export function StatsOverview({ className = '' }: StatsOverviewProps) {
                 />
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
               </div>
-              
+
               <div className="flex justify-between text-xs text-gray-500">
                 <span>{account.worksCount} 作品</span>
                 <span>{formatNumber(account.totalLikes)} 点赞</span>
@@ -222,9 +250,9 @@ export function StatsOverview({ className = '' }: StatsOverviewProps) {
       return <div className="text-gray-500 text-center py-8">暂无数据</div>;
     }
 
-    const maxPlays = Math.max(...data.map(item => item.totalPlays));
-    const maxWorks = Math.max(...data.map(item => item.worksCount));
-    
+    const maxPlays = Math.max(...data.map((item) => item.totalPlays));
+    const maxWorks = Math.max(...data.map((item) => item.worksCount));
+
     const chartWidth = 300;
     const chartHeight = 150;
     const padding = 20;
@@ -232,18 +260,26 @@ export function StatsOverview({ className = '' }: StatsOverviewProps) {
     // 生成路径点
     const generatePoints = (values: number[], max: number) => {
       return values.map((value, index) => {
-        const x = padding + (index / (values.length - 1)) * (chartWidth - 2 * padding);
-        const y = chartHeight - padding - ((value / max) * (chartHeight - 2 * padding));
+        const x =
+          padding + (index / (values.length - 1)) * (chartWidth - 2 * padding);
+        const y =
+          chartHeight - padding - (value / max) * (chartHeight - 2 * padding);
         return { x, y };
       });
     };
 
-    const playsPoints = generatePoints(data.map(item => item.totalPlays), maxPlays);
-    const worksPoints = generatePoints(data.map(item => item.worksCount), maxWorks);
+    const playsPoints = generatePoints(
+      data.map((item) => item.totalPlays),
+      maxPlays
+    );
+    const worksPoints = generatePoints(
+      data.map((item) => item.worksCount),
+      maxWorks
+    );
 
     const generatePath = (points: { x: number; y: number }[]) => {
-      if (points.length === 0) return '';
-      
+      if (points.length === 0) return "";
+
       let path = `M ${points[0].x} ${points[0].y}`;
       for (let i = 1; i < points.length; i++) {
         path += ` L ${points[i].x} ${points[i].y}`;
@@ -256,12 +292,22 @@ export function StatsOverview({ className = '' }: StatsOverviewProps) {
         <svg width={chartWidth} height={chartHeight} className="border rounded">
           {/* 网格线 */}
           <defs>
-            <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-              <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#f3f4f6" strokeWidth="1"/>
+            <pattern
+              id="grid"
+              width="20"
+              height="20"
+              patternUnits="userSpaceOnUse"
+            >
+              <path
+                d="M 20 0 L 0 0 0 20"
+                fill="none"
+                stroke="#f3f4f6"
+                strokeWidth="1"
+              />
             </pattern>
           </defs>
           <rect width="100%" height="100%" fill="url(#grid)" />
-          
+
           {/* 播放量趋势线 */}
           <path
             d={generatePath(playsPoints)}
@@ -270,7 +316,7 @@ export function StatsOverview({ className = '' }: StatsOverviewProps) {
             strokeWidth="3"
             strokeLinecap="round"
           />
-          
+
           {/* 作品数趋势线 */}
           <path
             d={generatePath(worksPoints)}
@@ -279,7 +325,7 @@ export function StatsOverview({ className = '' }: StatsOverviewProps) {
             strokeWidth="2"
             strokeDasharray="5,5"
           />
-          
+
           {/* 数据点 */}
           {playsPoints.map((point, index) => (
             <circle
@@ -292,7 +338,7 @@ export function StatsOverview({ className = '' }: StatsOverviewProps) {
             />
           ))}
         </svg>
-        
+
         {/* 图例 */}
         <div className="flex justify-center space-x-6">
           <div className="flex items-center space-x-2">
@@ -304,12 +350,15 @@ export function StatsOverview({ className = '' }: StatsOverviewProps) {
             <span className="text-sm text-gray-600">作品数</span>
           </div>
         </div>
-        
+
         {/* 时间轴 */}
         <div className="flex justify-between text-xs text-gray-500 px-5">
           {data.map((item) => (
             <span key={item.date}>
-              {new Date(item.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
+              {new Date(item.date).toLocaleDateString("zh-CN", {
+                month: "short",
+                day: "numeric",
+              })}
             </span>
           ))}
         </div>
@@ -319,7 +368,7 @@ export function StatsOverview({ className = '' }: StatsOverviewProps) {
 
   // 数字格式化函数
   const formatNumber = (num: number | undefined | null): string => {
-    if (num == null || isNaN(num)) return '0';
+    if (num == null || isNaN(num)) return "0";
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
     if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
     return num.toString();
@@ -359,11 +408,13 @@ export function StatsOverview({ className = '' }: StatsOverviewProps) {
   return (
     <div className={`bg-white rounded-lg shadow p-6 ${className}`}>
       <h2 className="text-xl font-bold text-gray-900 mb-6">数据统计概览</h2>
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* 状态分布饼图 */}
         <div className="bg-gray-50 rounded-lg p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">账号状态分布</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-4">
+            账号状态分布
+          </h3>
           {dashboardStats ? (
             <StatusPieChart data={dashboardStats} />
           ) : (
@@ -373,7 +424,9 @@ export function StatsOverview({ className = '' }: StatsOverviewProps) {
 
         {/* 表现对比柱状图 */}
         <div className="bg-gray-50 rounded-lg p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">热门账号排行</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-4">
+            热门账号排行
+          </h3>
           <PerformanceBarChart accounts={topAccounts} />
         </div>
 
@@ -393,21 +446,21 @@ export function StatsOverview({ className = '' }: StatsOverviewProps) {
             </div>
             <div className="text-sm text-blue-600">总账号数</div>
           </div>
-          
+
           <div className="bg-green-50 rounded-lg p-4 text-center">
             <div className="text-2xl font-bold text-green-600">
               {formatNumber(dashboardStats.totalWorks)}
             </div>
             <div className="text-sm text-green-600">总作品数</div>
           </div>
-          
+
           <div className="bg-purple-50 rounded-lg p-4 text-center">
             <div className="text-2xl font-bold text-purple-600">
               {formatNumber(dashboardStats.totalPlays)}
             </div>
             <div className="text-sm text-purple-600">总播放量</div>
           </div>
-          
+
           <div className="bg-yellow-50 rounded-lg p-4 text-center">
             <div className="text-2xl font-bold text-yellow-600">
               {formatNumber(dashboardStats.totalLikes)}

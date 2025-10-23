@@ -1,52 +1,57 @@
 // 统计服务 - 负责数据统计和分析
 
-import { db } from './database';
+import { db } from "./database";
 import type {
   DashboardStats,
   StatusDistribution,
   TopAccount,
   AccountStatus,
-  TrendData
-} from '../types';
+  TrendData,
+} from "../types";
 
 /**
  * 统计服务类
  */
 export class StatsService {
-  
   /**
    * 获取仪表板统计数据
+   * 🔄 优化：减少并行查询数量，采用部分串行方式
    */
   async getDashboardStats(): Promise<DashboardStats> {
     try {
-      console.log('📊 开始计算仪表板统计数据...');
-      
-      // 1. 基础统计查询
-      const [
-        totalStats,
-        statusDistribution,
-        topAccounts,
-        performanceStats
-      ] = await Promise.all([
-        this.getTotalStats(),
-        this.getStatusDistribution(),
+      console.log("📊 开始计算仪表板统计数据...");
+
+      // 🔄 步骤1：先获取最重要的基础统计（只用一个连接）
+      console.log("  → 步骤1: 获取基础统计...");
+      const totalStats = await this.getTotalStats();
+
+      // 🔄 步骤2：获取状态分布（复用上一步的连接释放后）
+      console.log("  → 步骤2: 获取状态分布...");
+      const statusDistribution = await this.getStatusDistribution();
+
+      // 🔄 步骤3：并行获取剩余的两个查询（减少到2个并行）
+      console.log("  → 步骤3: 并行获取top账号和性能统计...");
+      const [topAccounts, performanceStats] = await Promise.all([
         this.getTopAccounts(),
-        this.getPerformanceStats()
+        this.getPerformanceStats(),
       ]);
 
       const stats: DashboardStats = {
         ...totalStats,
         statusDistribution,
         topAccounts,
-        ...performanceStats
+        ...performanceStats,
       };
 
-      console.log('✅ 仪表板统计数据计算完成');
+      console.log("✅ 仪表板统计数据计算完成");
       return stats;
-      
     } catch (error) {
-      console.error('❌ 计算仪表板统计失败:', error);
-      throw new Error(`统计数据计算失败: ${error instanceof Error ? error.message : String(error)}`);
+      console.error("❌ 计算仪表板统计失败:", error);
+      throw new Error(
+        `统计数据计算失败: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
   }
 
@@ -68,7 +73,7 @@ export class StatsService {
     `);
 
     const row = result.rows[0];
-    
+
     return {
       totalAccounts: parseInt(row.total_accounts),
       finishedAccounts: parseInt(row.finished_accounts),
@@ -76,7 +81,7 @@ export class StatsService {
       unsetAccounts: parseInt(row.unset_accounts),
       totalWorks: parseInt(row.total_works),
       totalPlays: parseInt(row.total_plays),
-      totalLikes: parseInt(row.total_likes)
+      totalLikes: parseInt(row.total_likes),
     };
   }
 
@@ -100,10 +105,10 @@ export class StatsService {
     `);
 
     const row = result.rows[0];
-    
+
     return {
       avgWorksPerAccount: parseFloat(row.avg_works_per_account) || 0,
-      avgPlaysPerWork: parseInt(row.avg_plays_per_work) || 0
+      avgPlaysPerWork: parseInt(row.avg_plays_per_work) || 0,
     };
   }
 
@@ -134,29 +139,36 @@ export class StatsService {
     `);
 
     // 计算总账号数用于百分比计算
-    const totalAccounts = result.rows.reduce((sum, row) => sum + parseInt(row.account_count), 0);
+    const totalAccounts = result.rows.reduce(
+      (sum, row) => sum + parseInt(row.account_count),
+      0
+    );
 
     const statusColors = {
-      '成品号': '#22C55E',     // 绿色
-      '半成品号': '#F59E0B',   // 橙色  
-      'unset': '#6B7280'      // 灰色
+      成品号: "#22C55E", // 绿色
+      半成品号: "#F59E0B", // 橙色
+      unset: "#6B7280", // 灰色
     };
 
     const statusLabels = {
-      '成品号': '成品号',
-      '半成品号': '半成品号',
-      'unset': '未分类'
+      成品号: "成品号",
+      半成品号: "半成品号",
+      unset: "未分类",
     };
 
-    return result.rows.map(row => ({
-      status: row.status === 'unset' ? 'unset' : row.status as AccountStatus,
-      label: statusLabels[row.status as keyof typeof statusLabels] || row.status,
+    return result.rows.map((row) => ({
+      status: row.status === "unset" ? "unset" : (row.status as AccountStatus),
+      label:
+        statusLabels[row.status as keyof typeof statusLabels] || row.status,
       count: parseInt(row.account_count),
-      percentage: totalAccounts > 0 ? Math.round((parseInt(row.account_count) / totalAccounts) * 100) : 0,
+      percentage:
+        totalAccounts > 0
+          ? Math.round((parseInt(row.account_count) / totalAccounts) * 100)
+          : 0,
       avgPlays: parseInt(row.avg_plays),
       avgLikes: parseInt(row.avg_likes),
       avgWorks: parseFloat(row.avg_works),
-      color: statusColors[row.status as keyof typeof statusColors] || '#6B7280'
+      color: statusColors[row.status as keyof typeof statusColors] || "#6B7280",
     }));
   }
 
@@ -164,7 +176,8 @@ export class StatsService {
    * 获取表现最好的账号
    */
   private async getTopAccounts(limit: number = 10): Promise<TopAccount[]> {
-    const result = await db.query(`
+    const result = await db.query(
+      `
       SELECT 
         author,
         author_status,
@@ -176,15 +189,17 @@ export class StatsService {
       GROUP BY author, author_status
       ORDER BY total_plays DESC, avg_plays DESC
       LIMIT $1
-    `, [limit]);
+    `,
+      [limit]
+    );
 
     return result.rows.map((row, index) => ({
       author: row.author,
-      status: row.author_status as AccountStatus || null,
+      status: (row.author_status as AccountStatus) || null,
       worksCount: parseInt(row.works_count),
       totalPlays: parseInt(row.total_plays),
       avgPlays: parseInt(row.avg_plays),
-      rank: index + 1
+      rank: index + 1,
     }));
   }
 
@@ -193,7 +208,8 @@ export class StatsService {
    */
   async getTrendData(days: number = 30): Promise<TrendData[]> {
     try {
-      const result = await db.query(`
+      const result = await db.query(
+        `
         SELECT 
           DATE(created_at) as date,
           COUNT(DISTINCT author) as total_accounts,
@@ -207,20 +223,25 @@ export class StatsService {
         GROUP BY DATE(created_at)
         ORDER BY date DESC
         LIMIT $1
-      `, [days]);
+      `,
+        [days]
+      );
 
-      return result.rows.map(row => ({
+      return result.rows.map((row) => ({
         date: row.date,
         totalAccounts: parseInt(row.total_accounts),
         finishedAccounts: parseInt(row.finished_accounts),
         semiFinishedAccounts: parseInt(row.semi_finished_accounts),
         newWorks: parseInt(row.new_works),
-        totalPlays: parseInt(row.total_plays)
+        totalPlays: parseInt(row.total_plays),
       }));
-
     } catch (error) {
-      console.error('获取趋势数据失败:', error);
-      throw new Error(`趋势数据查询失败: ${error instanceof Error ? error.message : String(error)}`);
+      console.error("获取趋势数据失败:", error);
+      throw new Error(
+        `趋势数据查询失败: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
   }
 
@@ -228,18 +249,23 @@ export class StatsService {
    * 获取账号表现排行榜
    */
   async getAccountRankings(
-    sortBy: 'totalPlays' | 'avgPlays' | 'totalLikes' | 'worksCount' = 'totalPlays',
+    sortBy:
+      | "totalPlays"
+      | "avgPlays"
+      | "totalLikes"
+      | "worksCount" = "totalPlays",
     limit: number = 50
   ): Promise<TopAccount[]> {
     try {
       const orderByMap = {
-        totalPlays: 'total_plays DESC',
-        avgPlays: 'avg_plays DESC',
-        totalLikes: 'total_likes DESC',
-        worksCount: 'works_count DESC'
+        totalPlays: "total_plays DESC",
+        avgPlays: "avg_plays DESC",
+        totalLikes: "total_likes DESC",
+        worksCount: "works_count DESC",
       };
 
-      const result = await db.query(`
+      const result = await db.query(
+        `
         SELECT 
           author,
           author_status,
@@ -252,41 +278,47 @@ export class StatsService {
         GROUP BY author, author_status
         ORDER BY ${orderByMap[sortBy]}
         LIMIT $1
-      `, [limit]);
+      `,
+        [limit]
+      );
 
       return result.rows.map((row, index) => ({
         author: row.author,
-        status: row.author_status as AccountStatus || null,
+        status: (row.author_status as AccountStatus) || null,
         worksCount: parseInt(row.works_count),
         totalPlays: parseInt(row.total_plays),
         avgPlays: parseInt(row.avg_plays),
-        rank: index + 1
+        rank: index + 1,
       }));
-
     } catch (error) {
-      console.error('获取排行榜失败:', error);
-      throw new Error(`排行榜查询失败: ${error instanceof Error ? error.message : String(error)}`);
+      console.error("获取排行榜失败:", error);
+      throw new Error(
+        `排行榜查询失败: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
   }
 
   /**
    * 获取特定状态的账号统计
    */
-  async getStatusStats(status: AccountStatus | 'unset' | 'all' = 'all') {
+  async getStatusStats(status: AccountStatus | "unset" | "all" = "all") {
     try {
-      let whereClause = 'WHERE author IS NOT NULL';
+      let whereClause = "WHERE author IS NOT NULL";
       const params: any[] = [];
 
-      if (status !== 'all') {
-        if (status === 'unset') {
-          whereClause += ' AND author_status IS NULL';
+      if (status !== "all") {
+        if (status === "unset") {
+          whereClause += " AND author_status IS NULL";
         } else {
-          whereClause += ' AND author_status = $1';
+          whereClause += " AND author_status = $1";
           params.push(status);
         }
       }
 
-      const result = await db.query(`
+      const result = await db.query(
+        `
         SELECT 
           COUNT(DISTINCT author) as account_count,
           COUNT(*) as work_count,
@@ -300,13 +332,18 @@ export class StatsService {
           MIN(play_count) as min_plays
         FROM tiktok_videos_raw
         ${whereClause}
-      `, params);
+      `,
+        params
+      );
 
       return result.rows[0];
-
     } catch (error) {
-      console.error('获取状态统计失败:', error);
-      throw new Error(`状态统计查询失败: ${error instanceof Error ? error.message : String(error)}`);
+      console.error("获取状态统计失败:", error);
+      throw new Error(
+        `状态统计查询失败: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
   }
 
@@ -391,12 +428,15 @@ export class StatsService {
 
       return {
         performanceComparison: performanceComparison.rows,
-        playCountDistribution: playCountDistribution.rows
+        playCountDistribution: playCountDistribution.rows,
       };
-
     } catch (error) {
-      console.error('获取性能分析失败:', error);
-      throw new Error(`性能分析查询失败: ${error instanceof Error ? error.message : String(error)}`);
+      console.error("获取性能分析失败:", error);
+      throw new Error(
+        `性能分析查询失败: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
   }
 }
