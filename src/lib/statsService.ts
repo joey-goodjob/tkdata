@@ -266,16 +266,17 @@ export class StatsService {
 
       const result = await db.query(
         `
-        SELECT 
+        SELECT
           author,
           author_status,
+          phone_number,
           COUNT(*) as works_count,
           COALESCE(SUM(play_count), 0) as total_plays,
           COALESCE(SUM(like_count), 0) as total_likes,
           ROUND(AVG(COALESCE(play_count, 0)), 0) as avg_plays
         FROM tiktok_videos_raw
         WHERE author IS NOT NULL
-        GROUP BY author, author_status
+        GROUP BY author, author_status, phone_number
         ORDER BY ${orderByMap[sortBy]}
         LIMIT $1
       `,
@@ -285,6 +286,7 @@ export class StatsService {
       return result.rows.map((row, index) => ({
         author: row.author,
         status: (row.author_status as AccountStatus) || null,
+        phoneNumber: row.phone_number || null,
         worksCount: parseInt(row.works_count),
         totalPlays: parseInt(row.total_plays),
         avgPlays: parseInt(row.avg_plays),

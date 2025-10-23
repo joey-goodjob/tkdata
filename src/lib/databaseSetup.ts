@@ -41,14 +41,68 @@ export class DatabaseSetup {
   async createAuthorStatusField(): Promise<boolean> {
     try {
       await db.query(`
-        ALTER TABLE tiktok_videos_raw 
+        ALTER TABLE tiktok_videos_raw
         ADD COLUMN IF NOT EXISTS author_status VARCHAR(20)
       `);
-      
+
       console.log('✅ author_status字段创建成功');
       return true;
     } catch (error) {
       console.error('创建author_status字段失败:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 创建phone_number字段（如果不存在）
+   */
+  async createPhoneNumberField(): Promise<boolean> {
+    try {
+      await db.query(`
+        ALTER TABLE tiktok_videos_raw
+        ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20)
+      `);
+
+      console.log('✅ phone_number字段创建成功');
+
+      // 添加字段注释
+      await db.query(`
+        COMMENT ON COLUMN tiktok_videos_raw.phone_number IS '手机管理编号(1,2,3等),用于标识账号归属的手机设备'
+      `);
+
+      return true;
+    } catch (error) {
+      console.error('创建phone_number字段失败:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 验证phone_number字段是否存在
+   */
+  async verifyPhoneNumberField(): Promise<boolean> {
+    try {
+      const result = await db.query(`
+        SELECT column_name, data_type, character_maximum_length, is_nullable
+        FROM information_schema.columns
+        WHERE table_name = 'tiktok_videos_raw'
+        AND column_name = 'phone_number'
+      `);
+
+      if (result.rows.length === 0) {
+        console.log('❌ phone_number字段不存在，需要创建');
+        return false;
+      }
+
+      const field = result.rows[0];
+      console.log('✅ phone_number字段已存在:');
+      console.log(`  - 数据类型: ${field.data_type}`);
+      console.log(`  - 最大长度: ${field.character_maximum_length || 'N/A'}`);
+      console.log(`  - 允许NULL: ${field.is_nullable}`);
+
+      return true;
+    } catch (error) {
+      console.error('验证phone_number字段时出错:', error);
       return false;
     }
   }
@@ -146,6 +200,11 @@ export class DatabaseSetup {
         name: 'idx_tiktok_author_status',
         sql: 'CREATE INDEX IF NOT EXISTS idx_tiktok_author_status ON tiktok_videos_raw(author_status)',
         description: 'author_status字段索引（用于状态筛选）'
+      },
+      {
+        name: 'idx_tiktok_phone_number',
+        sql: 'CREATE INDEX IF NOT EXISTS idx_tiktok_phone_number ON tiktok_videos_raw(phone_number) WHERE phone_number IS NOT NULL',
+        description: 'phone_number字段索引（用于按手机编号筛选）'
       },
       {
         name: 'idx_tiktok_author_status_created',
@@ -1171,6 +1230,16 @@ export class DatabaseSetup {
         const created = await this.createAuthorStatusField();
         if (!created) {
           throw new Error('author_status字段创建失败');
+        }
+      }
+
+      // 2.0.5 验证和创建phone_number字段
+      console.log('\n2.0.5️⃣ 验证phone_number字段...');
+      const phoneFieldExists = await this.verifyPhoneNumberField();
+      if (!phoneFieldExists) {
+        const phoneCreated = await this.createPhoneNumberField();
+        if (!phoneCreated) {
+          throw new Error('phone_number字段创建失败');
         }
       }
 

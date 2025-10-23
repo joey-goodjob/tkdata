@@ -65,6 +65,11 @@ class QueryQueue {
   }
 }
 
+// 全局类型声明（用于开发模式下保持单例）
+declare global {
+  var __db_instance__: DatabaseConnection | undefined;
+}
+
 // 数据库连接池单例
 class DatabaseConnection {
   private static instance: DatabaseConnection;
@@ -79,7 +84,7 @@ class DatabaseConnection {
     // 检测运行环境
     const isProduction = process.env.NODE_ENV === 'production';
     const isVercel = process.env.VERCEL === '1';
-    
+
     console.log(`🔧 初始化数据库连接池 - 环境: ${isProduction ? '生产' : '开发'}, Vercel: ${isVercel}`);
 
     // 初始化查询队列管理器（Vercel环境更保守的并发数）
@@ -136,6 +141,15 @@ class DatabaseConnection {
   }
 
   public static getInstance(): DatabaseConnection {
+    // 在开发模式下使用 globalThis 保持单例
+    if (process.env.NODE_ENV !== 'production') {
+      if (!global.__db_instance__) {
+        global.__db_instance__ = new DatabaseConnection();
+      }
+      return global.__db_instance__;
+    }
+
+    // 生产模式使用静态实例
     if (!DatabaseConnection.instance) {
       DatabaseConnection.instance = new DatabaseConnection();
     }
@@ -321,6 +335,7 @@ export interface TiktokRawData {
   search_keyword?: string;
   author?: string;
   author_status?: string;               // 新增：账号状态字段
+  phone_number?: string;                // 新增：手机管理编号
   author_fans_count?: number;
   author_homepage?: string;
   author_homepage_note?: string;

@@ -219,6 +219,9 @@ export function StatsOverview({
                   >
                     {account.status || "未分类"}
                   </span>
+                  <span className="text-xs text-gray-500">
+                    手机: {account.phoneNumber || "无"}
+                  </span>
                 </div>
                 <div className="text-sm text-gray-600">
                   {formatNumber(account.totalPlays)} 播放

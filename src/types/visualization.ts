@@ -10,6 +10,7 @@ export enum AccountStatus {
 export interface Account {
   author: string;                    // 账号名称
   status: AccountStatus | null;      // 账号状态
+  phoneNumber: string | null;        // 手机管理编号
   worksCount: number;               // 作品数量
   totalPlays: number;               // 总播放量
   totalLikes: number;               // 总点赞量
@@ -139,6 +140,7 @@ export interface StatusDistribution {
 export interface TopAccount {
   author: string;
   status: AccountStatus | null;
+  phoneNumber?: string | null;      // 手机管理编号
   worksCount: number;
   totalPlays: number;
   avgPlays: number;

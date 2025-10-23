@@ -77,9 +77,10 @@ export async function GET(request: NextRequest) {
 
     // 查询账号列表数据
     const accountsQuery = `
-      SELECT 
+      SELECT
         author,
         author_status,
+        phone_number,
         deleted_at,
         COUNT(*) as works_count,
         SUM(COALESCE(play_count, 0)) as total_plays,
@@ -91,9 +92,9 @@ export async function GET(request: NextRequest) {
         MIN(created_at) as first_upload,
         MAX(created_at) as last_upload,
         COUNT(CASE WHEN play_count >= 100000 THEN 1 END) as high_performance_works
-      FROM tiktok_videos_raw 
+      FROM tiktok_videos_raw
       WHERE ${whereClause}
-      GROUP BY author, author_status, deleted_at
+      GROUP BY author, author_status, phone_number, deleted_at
       ORDER BY ${sortField} ${order}
       LIMIT $${limitIndex} OFFSET $${offsetIndex}
     `;
@@ -114,6 +115,7 @@ export async function GET(request: NextRequest) {
     const accounts: Account[] = accountsResult.rows.map(row => ({
       author: row.author,
       status: row.author_status as any || null,
+      phoneNumber: row.phone_number || null,
       worksCount: parseInt(row.works_count),
       totalPlays: parseInt(row.total_plays),
       totalLikes: parseInt(row.total_likes),

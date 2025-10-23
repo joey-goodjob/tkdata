@@ -36,6 +36,9 @@ export default function AccountsPage() {
   // 删除操作状态
   const [deleteLoading, setDeleteLoading] = useState<string>('');
 
+  // 手机编号更新状态
+  const [phoneNumberUpdating, setPhoneNumberUpdating] = useState<string>('');
+
   // 获取账号列表
   const fetchAccounts = useCallback(async () => {
     try {
@@ -147,6 +150,39 @@ export default function AccountsPage() {
       alert(`批量更新失败: ${error instanceof Error ? error.message : '未知错误'}`);
     } finally {
       setBatchLoading(false);
+    }
+  };
+
+  // 更新手机编号
+  const updatePhoneNumber = async (author: string, phoneNumber: string) => {
+    try {
+      setPhoneNumberUpdating(author);
+
+      const response = await fetch(`/api/accounts/${encodeURIComponent(author)}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ phoneNumber: phoneNumber || null }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // 更新本地状态
+        setAccounts(prev => prev.map(account =>
+          account.author === author
+            ? { ...account, phoneNumber: phoneNumber || null }
+            : account
+        ));
+      } else {
+        throw new Error(data.message || '更新失败');
+      }
+    } catch (error) {
+      console.error('更新手机编号失败:', error);
+      alert(`更新失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    } finally {
+      setPhoneNumberUpdating('');
     }
   };
 
@@ -539,19 +575,58 @@ export default function AccountsPage() {
                           <div className="flex items-center space-x-2">
                             {!account.isDeleted ? (
                               <>
-                                <select
-                                  value={account.status || ''}
-                                  onChange={(e) => updateAccountStatus(account.author, e.target.value as AccountStatus || null)}
-                                  className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                                >
-                                  <option value="">未分类</option>
-                                  <option value="成品号">成品号</option>
-                                  <option value="半成品号">半成品号</option>
-                                </select>
+                                {/* 手机编号输入框 */}
+                                <div className="flex flex-col">
+                                  <label className="text-xs text-gray-500 mb-1">手机</label>
+                                  <input
+                                    type="text"
+                                    defaultValue={account.phoneNumber || ''}
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      // 只允许输入数字
+                                      if (value !== '' && !/^\d+$/.test(value)) {
+                                        e.target.value = value.replace(/\D/g, '');
+                                      }
+                                    }}
+                                    onBlur={(e) => {
+                                      // 失焦时保存
+                                      const newValue = e.target.value;
+                                      const originalValue = account.phoneNumber || '';
+                                      if (newValue !== originalValue) {
+                                        updatePhoneNumber(account.author, newValue);
+                                      }
+                                    }}
+                                    onKeyDown={(e) => {
+                                      // 按回车保存
+                                      if (e.key === 'Enter') {
+                                        e.currentTarget.blur();
+                                      }
+                                    }}
+                                    placeholder="1-99"
+                                    disabled={phoneNumberUpdating === account.author}
+                                    className="w-16 text-sm text-center border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
+                                  />
+                                </div>
+
+                                {/* 账号状态选择器 */}
+                                <div className="flex flex-col">
+                                  <label className="text-xs text-gray-500 mb-1">状态</label>
+                                  <select
+                                    value={account.status || ''}
+                                    onChange={(e) => updateAccountStatus(account.author, e.target.value as AccountStatus || null)}
+                                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                  >
+                                    <option value="">未分类</option>
+                                    <option value="成品号">成品号</option>
+                                    <option value="半成品号">半成品号</option>
+                                  </select>
+                                </div>
+
+                                {/* 删除按钮 */}
                                 <button
                                   onClick={() => deleteAccount(account.author, account.worksCount)}
                                   disabled={deleteLoading === account.author}
-                                  className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed mt-5"
                                   title={`删除账号（${account.worksCount} 条作品）`}
                                 >
                                   {deleteLoading === account.author ? '删除中...' : '删除'}

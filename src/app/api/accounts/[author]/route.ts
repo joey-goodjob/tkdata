@@ -14,22 +14,25 @@ export async function PUT(
 ) {
   try {
     const { author } = await params;
-    const { status } = await request.json();
+    const body = await request.json();
+    const { status, phoneNumber } = body;
 
-    console.log(`📝 接收账号状态更新请求: author="${author}", status="${status}"`);
+    console.log(`📝 接收账号信息更新请求: author="${author}", status="${status}", phoneNumber="${phoneNumber}"`);
 
     // 验证状态值
-    const validStatuses = ['成品号', '半成品号'];
-    if (status !== null && status !== '' && !validStatuses.includes(status)) {
-      return NextResponse.json({
-        success: false,
-        message: '无效的账号状态',
-        error: {
-          code: 'INVALID_STATUS',
-          message: '状态必须是: 成品号, 半成品号, 或空值',
-          timestamp: new Date()
-        }
-      } as ApiResponse, { status: 400 });
+    if (status !== undefined) {
+      const validStatuses = ['成品号', '半成品号'];
+      if (status !== null && status !== '' && !validStatuses.includes(status)) {
+        return NextResponse.json({
+          success: false,
+          message: '无效的账号状态',
+          error: {
+            code: 'INVALID_STATUS',
+            message: '状态必须是: 成品号, 半成品号, 或空值',
+            timestamp: new Date()
+          }
+        } as ApiResponse, { status: 400 });
+      }
     }
 
     // 解码author参数（处理URL编码）
@@ -38,7 +41,7 @@ export async function PUT(
     // 检查账号是否存在
     const checkQuery = 'SELECT COUNT(*) as count FROM tiktok_videos_raw WHERE author = $1';
     const checkResult = await db.query(checkQuery, [decodedAuthor]);
-    
+
     if (parseInt(checkResult.rows[0].count) === 0) {
       return NextResponse.json({
         success: false,
@@ -51,28 +54,60 @@ export async function PUT(
       } as ApiResponse, { status: 404 });
     }
 
-    // 更新账号状态
+    // 构建动态更新SQL
+    const updates: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    if (status !== undefined) {
+      updates.push(`author_status = $${paramIndex}`);
+      values.push(status || null);
+      paramIndex++;
+    }
+
+    if (phoneNumber !== undefined) {
+      updates.push(`phone_number = $${paramIndex}`);
+      values.push(phoneNumber || null);
+      paramIndex++;
+    }
+
+    if (updates.length === 0) {
+      return NextResponse.json({
+        success: false,
+        message: '没有要更新的字段',
+        error: {
+          code: 'NO_UPDATE_FIELDS',
+          message: '请提供要更新的字段(status 或 phoneNumber)',
+          timestamp: new Date()
+        }
+      } as ApiResponse, { status: 400 });
+    }
+
+    updates.push('updated_at = CURRENT_TIMESTAMP');
+    values.push(decodedAuthor);
+
     const updateQuery = `
-      UPDATE tiktok_videos_raw 
-      SET author_status = $1, updated_at = CURRENT_TIMESTAMP 
-      WHERE author = $2
+      UPDATE tiktok_videos_raw
+      SET ${updates.join(', ')}
+      WHERE author = $${paramIndex}
     `;
 
-    const result = await db.query(updateQuery, [status || null, decodedAuthor]);
+    const result = await db.query(updateQuery, values);
     const updatedRows = result.rowCount || 0;
 
     const response: ApiResponse = {
       success: true,
-      message: `账号状态更新成功，影响 ${updatedRows} 条记录`,
+      message: `账号信息更新成功，影响 ${updatedRows} 条记录`,
       data: {
         author: decodedAuthor,
-        status: status || null,
+        status: status !== undefined ? (status || null) : undefined,
+        phoneNumber: phoneNumber !== undefined ? (phoneNumber || null) : undefined,
         updatedRecords: updatedRows
       },
       timestamp: new Date().toISOString()
     };
 
-    console.log(`✅ 账号状态更新成功: author="${decodedAuthor}", status="${status}", records=${updatedRows}`);
+    console.log(`✅ 账号信息更新成功: author="${decodedAuthor}", status="${status}", phoneNumber="${phoneNumber}", records=${updatedRows}`);
     return NextResponse.json(response, { status: 200 });
 
   } catch (error) {
