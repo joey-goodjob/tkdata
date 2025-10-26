@@ -7,6 +7,7 @@ interface DashboardStatsData {
   finishedAccounts: number;
   finishedThousandVideos: number; // 成品号千播放视频数
   semiFinishedThousandVideos: number; // 半成品号千播放视频数
+  allThousandVideos: number; // 所有账号千播放视频数（不区分成品/半成品）
 }
 
 interface DashboardStatsProps {
@@ -71,8 +72,8 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
       <div className={`bg-white shadow rounded-lg p-6 ${className}`}>
         <div className="animate-pulse">
           <div className="h-6 bg-gray-200 rounded mb-4 w-1/3"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {Array.from({ length: 4 }).map((_, index) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+            {Array.from({ length: 5 }).map((_, index) => (
               <div
                 key={index}
                 className="text-center p-4 bg-gray-50 rounded-lg"
@@ -127,7 +128,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         {/* 1. 总账号数 */}
         <div className="text-center p-6 bg-blue-50 rounded-lg border border-blue-200">
           <div className="text-3xl font-bold text-blue-600 mb-2">
@@ -171,14 +172,28 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
             ({selectedDate} 发布的千播放视频)
           </div>
         </div>
+
+        {/* 5. 所有账号千播放视频数 */}
+        <div className="text-center p-6 bg-orange-50 rounded-lg border border-orange-200">
+          <div className="text-3xl font-bold text-orange-600 mb-2">
+            {stats?.allThousandVideos.toLocaleString() || 0}
+          </div>
+          <div className="text-sm text-orange-700 font-medium">
+            所有千播放视频
+          </div>
+          <div className="text-xs text-orange-600 mt-1">
+            ({selectedDate} 发布的千播放视频)
+          </div>
+        </div>
       </div>
 
       {/* 数据说明 */}
       <div className="mt-6 p-4 bg-gray-50 rounded-lg">
         <p className="text-xs text-gray-600">
           💡 <strong>统计说明:</strong>
-          前2项为账号总数统计，后2项为选定发布日期的千播放视频数统计。
-          后2项统计基于最新上传数据，按作品发布时间筛选播放量≥1000的视频数量。
+          前2项为账号总数统计，后3项为选定发布日期的千播放视频数统计。
+          后3项统计基于最新上传数据，按作品发布时间筛选播放量≥1000的视频数量。
+          第5项不区分成品号/半成品号，统计所有千播放视频。
           已删除的账号不计入统计。
         </p>
       </div>
