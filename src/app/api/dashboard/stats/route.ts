@@ -5,8 +5,8 @@ import type { ApiResponse } from "@/types";
 interface DashboardStats {
   totalAccounts: number;
   finishedAccounts: number;
-  finishedDailyThousand: number;
-  semiFinishedDailyThousand: number;
+  finishedThousandVideos: number; // 成品号千播放视频数
+  semiFinishedThousandVideos: number; // 半成品号千播放视频数
 }
 
 export async function GET(request: NextRequest) {
@@ -36,58 +36,58 @@ export async function GET(request: NextRequest) {
       `),
     ]);
 
-    // 步骤2：如果有日期参数，再查询日千播数据（较慢的查询）
-    let finishedDailyThousandResult = { rows: [{ count: 0 }] };
-    let semiFinishedDailyThousandResult = { rows: [{ count: 0 }] };
+    // 步骤2：查询千播放视频数据（较慢的查询）
+    let finishedThousandVideosResult = { rows: [{ count: 0 }] };
+    let semiFinishedThousandVideosResult = { rows: [{ count: 0 }] };
 
     if (dateParam) {
-      console.log("  → 步骤2: 查询日千播账号数...");
-      [finishedDailyThousandResult, semiFinishedDailyThousandResult] =
+      console.log("  → 步骤2: 查询成品号和半成品号千播放视频数...");
+      [finishedThousandVideosResult, semiFinishedThousandVideosResult] =
         await Promise.all([
-          // 3. 成品日千播账号数（简化版：总播放量≥1000）
+          // 3. 成品号千播放视频数（指定发布日期内播放量≥1000的视频数）
           db.query(`
-          SELECT COUNT(DISTINCT author) as count
-          FROM (
-            SELECT author, SUM(COALESCE(play_count, 0)) as total_plays
-            FROM tiktok_videos_raw 
-            WHERE author IS NOT NULL
-              AND author_status = '成品号'
-            GROUP BY author
-            HAVING SUM(COALESCE(play_count, 0)) >= 1000
-          ) subquery
-        `),
+          SELECT COUNT(*) as count
+          FROM tiktok_videos_raw
+          WHERE
+            -- 2. 成品号
+            author_status = '成品号'
+            -- 3. 用户选择的发布日期
+            AND DATE(publish_time) = DATE($1)
+            -- 4. 播放量破千的视频
+            AND COALESCE(play_count, 0) >= 1000
+        `, [dateParam]),
 
-          // 4. 半成品日千播账号数（简化版：总播放量≥1000）
+          // 4. 半成品号千播放视频数（指定发布日期内播放量≥1000的视频数）
           db.query(`
-          SELECT COUNT(DISTINCT author) as count
-          FROM (
-            SELECT author, SUM(COALESCE(play_count, 0)) as total_plays
-            FROM tiktok_videos_raw 
-            WHERE author IS NOT NULL
-              AND author_status = '半成品号'
-            GROUP BY author
-            HAVING SUM(COALESCE(play_count, 0)) >= 1000
-          ) subquery
-        `),
+          SELECT COUNT(*) as count
+          FROM tiktok_videos_raw
+          WHERE
+            -- 2. 半成品号
+            author_status = '半成品号'
+            -- 3. 用户选择的发布日期
+            AND DATE(publish_time) = DATE($1)
+            -- 4. 播放量破千的视频
+            AND COALESCE(play_count, 0) >= 1000
+        `, [dateParam]),
         ]);
     }
 
     const stats: DashboardStats = {
       totalAccounts: parseInt(String(totalAccountsResult.rows[0].count)),
       finishedAccounts: parseInt(String(finishedAccountsResult.rows[0].count)),
-      finishedDailyThousand: parseInt(
-        String(finishedDailyThousandResult.rows[0].count)
+      finishedThousandVideos: parseInt(
+        String(finishedThousandVideosResult.rows[0].count)
       ),
-      semiFinishedDailyThousand: parseInt(
-        String(semiFinishedDailyThousandResult.rows[0].count)
+      semiFinishedThousandVideos: parseInt(
+        String(semiFinishedThousandVideosResult.rows[0].count)
       ),
     };
 
     console.log(`✅ dashboard统计完成:`, {
       totalAccounts: stats.totalAccounts,
       finishedAccounts: stats.finishedAccounts,
-      finishedDailyThousand: stats.finishedDailyThousand,
-      semiFinishedDailyThousand: stats.semiFinishedDailyThousand,
+      finishedThousandVideos: stats.finishedThousandVideos,
+      semiFinishedThousandVideos: stats.semiFinishedThousandVideos,
       date: dateParam,
     });
 

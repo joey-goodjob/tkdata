@@ -5,8 +5,8 @@ import React, { useState, useEffect } from "react";
 interface DashboardStatsData {
   totalAccounts: number;
   finishedAccounts: number;
-  finishedDailyThousand: number;
-  semiFinishedDailyThousand: number;
+  finishedThousandVideos: number; // 成品号千播放视频数
+  semiFinishedThousandVideos: number; // 半成品号千播放视频数
 }
 
 interface DashboardStatsProps {
@@ -146,29 +146,29 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
           <div className="text-xs text-green-600 mt-1">(已标记完成)</div>
         </div>
 
-        {/* 3. 成品日千播账号数 */}
+        {/* 3. 成品号千播放视频数 */}
         <div className="text-center p-6 bg-yellow-50 rounded-lg border border-yellow-200">
           <div className="text-3xl font-bold text-yellow-600 mb-2">
-            {stats?.finishedDailyThousand.toLocaleString() || 0}
+            {stats?.finishedThousandVideos.toLocaleString() || 0}
           </div>
           <div className="text-sm text-yellow-700 font-medium">
-            成品日千播账号
+            成品千播放视频
           </div>
           <div className="text-xs text-yellow-600 mt-1">
-            ({selectedDate} ≥1000播放)
+            ({selectedDate} 发布的千播放视频)
           </div>
         </div>
 
-        {/* 4. 半成品日千播账号数 */}
+        {/* 4. 半成品号千播放视频数 */}
         <div className="text-center p-6 bg-purple-50 rounded-lg border border-purple-200">
           <div className="text-3xl font-bold text-purple-600 mb-2">
-            {stats?.semiFinishedDailyThousand.toLocaleString() || 0}
+            {stats?.semiFinishedThousandVideos.toLocaleString() || 0}
           </div>
           <div className="text-sm text-purple-700 font-medium">
-            半成品日千播账号
+            半成品千播放视频
           </div>
           <div className="text-xs text-purple-600 mt-1">
-            ({selectedDate} ≥1000播放)
+            ({selectedDate} 发布的千播放视频)
           </div>
         </div>
       </div>
@@ -177,8 +177,8 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
       <div className="mt-6 p-4 bg-gray-50 rounded-lg">
         <p className="text-xs text-gray-600">
           💡 <strong>统计说明:</strong>
-          「日千播」指账号在选定日期当天的总播放量 ≥ 1000。
-          前2项指标为固定统计，后2项根据所选日期动态变化。
+          前2项为账号总数统计，后2项为选定发布日期的千播放视频数统计。
+          后2项统计基于最新上传数据，按作品发布时间筛选播放量≥1000的视频数量。
           已删除的账号不计入统计。
         </p>
       </div>
