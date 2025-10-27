@@ -29,8 +29,9 @@ export async function GET(request: NextRequest) {
         
       case 'rankings':
         const sortBy = (searchParams.get('sortBy') as any) || 'totalPlays';
-        const limit = parseInt(searchParams.get('limit') || '50');
-        data = await statsService.getAccountRankings(sortBy, limit);
+        const limit = parseInt(searchParams.get('limit') || '5');
+        const publishDate = searchParams.get('date') || undefined;
+        data = await statsService.getAccountRankings(sortBy, limit, publishDate);
         break;
         
       case 'performance':

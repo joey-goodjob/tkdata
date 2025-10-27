@@ -1,22 +1,24 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import type { DashboardStats, TrendData, TopAccount } from "@/types";
+import type { DashboardStats, TrendData, TopAccount, TopVideo } from "@/types";
 
 interface StatsOverviewProps {
   className?: string;
   onLoadComplete?: () => void; // 🔄 新增：加载完成回调
+  selectedDate?: string; // 🔄 新增：当前选择的日期
 }
 
 export function StatsOverview({
   className = "",
   onLoadComplete,
+  selectedDate,
 }: StatsOverviewProps) {
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(
     null
   );
   const [trendData, setTrendData] = useState<TrendData[]>([]);
-  const [topAccounts, setTopAccounts] = useState<TopAccount[]>([]);
+  const [topVideos, setTopVideos] = useState<TopVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
 
@@ -45,12 +47,14 @@ export function StatsOverview({
         }
 
         console.log("  → 加载排行数据...");
+        // 使用传入的日期，如果没有则使用默认逻辑
+        const dateParam = selectedDate ? `&date=${selectedDate}` : '';
         const rankingsResponse = await fetch(
-          "/api/stats?type=rankings&sortBy=totalPlays&limit=5"
+          `/api/stats?type=rankings&sortBy=totalPlays&limit=5${dateParam}`
         );
         const rankingsData = await rankingsResponse.json();
         if (rankingsData.success) {
-          setTopAccounts(rankingsData.data);
+          setTopVideos(rankingsData.data);
           console.log("  ✅ 排行数据加载完成");
         }
 
@@ -68,7 +72,7 @@ export function StatsOverview({
     };
 
     fetchStats();
-  }, [onLoadComplete]);
+  }, [onLoadComplete, selectedDate]);
 
   // 状态分布饼图组件
   const StatusPieChart = ({ data }: { data: DashboardStats }) => {
@@ -189,42 +193,37 @@ export function StatsOverview({
   };
 
   // 表现对比柱状图组件
-  const PerformanceBarChart = ({ accounts }: { accounts: TopAccount[] }) => {
-    if (!accounts || accounts.length === 0) {
+  const PerformanceBarChart = ({ videos }: { videos: TopVideo[] }) => {
+    if (!videos || videos.length === 0) {
       return <div className="text-gray-500 text-center py-8">暂无数据</div>;
     }
 
-    const maxPlays = Math.max(...accounts.map((account) => account.totalPlays));
+    const maxPlays = Math.max(...videos.map((video) => video.play_count));
 
     return (
       <div className="space-y-4">
-        {accounts.map((account, index) => {
-          const percentage = (account.totalPlays / maxPlays) * 100;
+        {videos.map((video) => {
+          const percentage = (video.play_count / maxPlays) * 100;
 
           return (
-            <div key={account.author} className="space-y-2">
+            <div key={video.work_url} className="space-y-2">
               <div className="flex justify-between items-center">
                 <div className="flex items-center space-x-2">
-                  <span className="text-sm font-medium text-gray-900 truncate max-w-32">
-                    {account.author}
-                  </span>
-                  <span
-                    className={`px-2 py-1 rounded text-xs font-medium ${
-                      account.status === "成品号"
-                        ? "bg-green-100 text-green-800"
-                        : account.status === "半成品号"
-                        ? "bg-yellow-100 text-yellow-800"
-                        : "bg-gray-100 text-gray-800"
-                    }`}
+                  <a
+                    href={video.work_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-medium text-blue-600 hover:text-blue-800 truncate max-w-32 hover:underline"
+                    title="点击打开视频链接"
                   >
-                    {account.status || "未分类"}
-                  </span>
+                    {video.work_url}
+                  </a>
                   <span className="text-xs text-gray-500">
-                    手机: {account.phoneNumber || "无"}
+                    作者: {video.author}
                   </span>
                 </div>
                 <div className="text-sm text-gray-600">
-                  {formatNumber(account.totalPlays)} 播放
+                  {formatNumber(video.play_count)} 播放
                 </div>
               </div>
 
@@ -237,8 +236,13 @@ export function StatsOverview({
               </div>
 
               <div className="flex justify-between text-xs text-gray-500">
-                <span>{account.worksCount} 作品</span>
-                <span>{formatNumber(account.totalLikes)} 点赞</span>
+                <span>
+                  {new Date(video.publish_time).toLocaleDateString("zh-CN", {
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </span>
+                <span>{formatNumber(video.like_count)} 点赞</span>
               </div>
             </div>
           );
@@ -428,9 +432,9 @@ export function StatsOverview({
         {/* 表现对比柱状图 */}
         <div className="bg-gray-50 rounded-lg p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">
-            热门账号排行
+            热门视频排行
           </h3>
-          <PerformanceBarChart accounts={topAccounts} />
+          <PerformanceBarChart videos={topVideos} />
         </div>
 
         {/* 趋势线图 */}

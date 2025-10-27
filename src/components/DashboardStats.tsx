@@ -13,19 +13,24 @@ interface DashboardStatsData {
 interface DashboardStatsProps {
   className?: string;
   onLoadComplete?: () => void; // 🔄 新增：加载完成回调
+  initialDate?: string; // 🔄 新增：外部传入的初始日期
+  onDateChange?: (date: string) => void; // 🔄 新增：日期变化回调
 }
 
 export const DashboardStats: React.FC<DashboardStatsProps> = ({
   className = "",
   onLoadComplete,
+  initialDate,
+  onDateChange,
 }) => {
   const [stats, setStats] = useState<DashboardStatsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split("T")[0] // 默认今天
+    initialDate || new Date().toISOString().split("T")[0] // 使用传入日期或默认今天
   );
 
+  
   // 获取统计数据
   const fetchStats = async (date?: string) => {
     try {
@@ -64,7 +69,12 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
 
   // 处理日期变化
   const handleDateChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSelectedDate(event.target.value);
+    const newDate = event.target.value;
+    setSelectedDate(newDate);
+    // 🔄 通知父组件日期变化
+    if (onDateChange) {
+      onDateChange(newDate);
+    }
   };
 
   if (loading) {

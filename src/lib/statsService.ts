@@ -254,48 +254,48 @@ export class StatsService {
       | "avgPlays"
       | "totalLikes"
       | "worksCount" = "totalPlays",
-    limit: number = 50
-  ): Promise<TopAccount[]> {
+    limit: number = 50,
+    publishDate?: string
+  ): Promise<TopVideo[]> {
     try {
-      const orderByMap = {
-        totalPlays: "total_plays DESC",
-        avgPlays: "avg_plays DESC",
-        totalLikes: "total_likes DESC",
-        worksCount: "works_count DESC",
-      };
+      const dateCondition = publishDate
+        ? `AND DATE(publish_time) = '${publishDate}'`
+        : `AND DATE(publish_time) = CURRENT_DATE - INTERVAL '1 day'`;
 
       const result = await db.query(
         `
         SELECT
+          work_title,
           author,
-          author_status,
-          phone_number,
-          COUNT(*) as works_count,
-          COALESCE(SUM(play_count), 0) as total_plays,
-          COALESCE(SUM(like_count), 0) as total_likes,
-          ROUND(AVG(COALESCE(play_count, 0)), 0) as avg_plays
+          work_url,
+          play_count,
+          like_count,
+          publish_time
         FROM tiktok_videos_raw
-        WHERE author IS NOT NULL
-        GROUP BY author, author_status, phone_number
-        ORDER BY ${orderByMap[sortBy]}
+        WHERE
+          play_count IS NOT NULL
+          AND play_count > 0
+          AND work_url IS NOT NULL
+          ${dateCondition}
+        ORDER BY play_count DESC
         LIMIT $1
       `,
         [limit]
       );
 
       return result.rows.map((row, index) => ({
+        title: row.work_title || row.work_url,
         author: row.author,
-        status: (row.author_status as AccountStatus) || null,
-        phoneNumber: row.phone_number || null,
-        worksCount: parseInt(row.works_count),
-        totalPlays: parseInt(row.total_plays),
-        avgPlays: parseInt(row.avg_plays),
+        work_url: row.work_url,
+        play_count: parseInt(row.play_count),
+        like_count: parseInt(row.like_count),
+        publish_time: row.publish_time,
         rank: index + 1,
       }));
     } catch (error) {
-      console.error("获取排行榜失败:", error);
+      console.error("获取TOP5视频排行榜失败:", error);
       throw new Error(
-        `排行榜查询失败: ${
+        `TOP5视频排行榜查询失败: ${
           error instanceof Error ? error.message : String(error)
         }`
       );

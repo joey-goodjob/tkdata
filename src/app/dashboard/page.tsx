@@ -11,6 +11,17 @@ export default function DashboardPage() {
   const [dashboardStatsLoaded, setDashboardStatsLoaded] = useState(false);
   const [statsOverviewLoaded, setStatsOverviewLoaded] = useState(false);
 
+  // 🔄 新增：页面级别的日期状态管理
+  const [selectedDate, setSelectedDate] = useState<string>(
+    // 使用19号作为默认日期，因为我们知道19号有数据
+    "2025-10-19"
+  );
+
+  // 🔄 处理日期变化的回调
+  const handleDateChange = (newDate: string) => {
+    setSelectedDate(newDate);
+  };
+
   useEffect(() => {
     setCurrentTime(new Date().toLocaleString("zh-CN"));
   }, []);
@@ -64,6 +75,8 @@ export default function DashboardPage() {
         {/* 🎯 第一步：Dashboard统计模块（最优先） */}
         <DashboardStats
           className="mb-8"
+          initialDate={selectedDate}
+          onDateChange={handleDateChange}
           onLoadComplete={() => setDashboardStatsLoaded(true)}
         />
 
@@ -71,6 +84,7 @@ export default function DashboardPage() {
         {dashboardStatsLoaded && (
           <StatsOverview
             className="mb-8"
+            selectedDate={selectedDate}
             onLoadComplete={() => setStatsOverviewLoaded(true)}
           />
         )}

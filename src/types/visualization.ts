@@ -147,6 +147,17 @@ export interface TopAccount {
   rank: number;                     // 排名
 }
 
+// 热门视频排行
+export interface TopVideo {
+  title: string;                    // 视频标题
+  author: string;                   // 视频作者
+  work_url: string;                 // 视频链接
+  play_count: number;               // 播放量
+  like_count: number;               // 点赞数
+  publish_time: Date;               // 发布时间
+  rank: number;                     // 排名
+}
+
 // 趋势数据
 export interface TrendData {
   date: string;                     // 日期
