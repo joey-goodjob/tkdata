@@ -9,6 +9,35 @@ interface StatsOverviewProps {
   selectedDate?: string; // 🔄 新增：当前选择的日期
 }
 
+/**
+ * 去重函数：以 work_url 为唯一标识去除重复视频
+ * 保留每个视频的最新记录（按播放量排序，取最高播放量的记录）
+ */
+function removeDuplicateVideos(videos: TopVideo[]): TopVideo[] {
+  if (!videos || videos.length === 0) {
+    return [];
+  }
+
+  const videoMap = new Map<string, TopVideo>();
+
+  videos.forEach(video => {
+    const key = video.work_url;
+
+    // 如果已存在相同的 work_url，比较播放量，保留播放量更高的
+    if (videoMap.has(key)) {
+      const existingVideo = videoMap.get(key)!;
+      if (video.play_count > existingVideo.play_count) {
+        videoMap.set(key, video);
+      }
+    } else {
+      videoMap.set(key, video);
+    }
+  });
+
+  // 转换为数组并按播放量降序排序
+  return Array.from(videoMap.values()).sort((a, b) => b.play_count - a.play_count);
+}
+
 export function StatsOverview({
   className = "",
   onLoadComplete,
@@ -49,12 +78,21 @@ export function StatsOverview({
         console.log("  → 加载排行数据...");
         // 使用传入的日期，如果没有则使用默认逻辑
         const dateParam = selectedDate ? `&date=${selectedDate}` : '';
+        // 🔧 请求20条数据，用于前端去重
         const rankingsResponse = await fetch(
-          `/api/stats?type=rankings&sortBy=totalPlays&limit=5${dateParam}`
+          `/api/stats?type=rankings&sortBy=totalPlays&limit=20${dateParam}`
         );
         const rankingsData = await rankingsResponse.json();
         if (rankingsData.success) {
-          setTopVideos(rankingsData.data);
+          console.log("    📊 去重前数据条数:", rankingsData.data.length);
+          // 🔄 前端去重：以 work_url 为唯一标识
+          const uniqueVideos = removeDuplicateVideos(rankingsData.data);
+          // 🔧 去重后只取前5条显示
+          const top5Videos = uniqueVideos.slice(0, 5);
+          console.log("    🔄 ���重后数据条数:", uniqueVideos.length);
+          console.log("    🎯 最终显示条数:", top5Videos.length);
+          console.log("    📋 最终数据:", top5Videos.map(v => ({ title: v.title, plays: v.play_count })));
+          setTopVideos(top5Videos);
           console.log("  ✅ 排行数据加载完成");
         }
 
