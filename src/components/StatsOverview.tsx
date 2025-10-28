@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import type { DashboardStats, TrendData, TopAccount, TopVideo } from "@/types";
+import { PerformanceBarChart } from "./PerformanceBarChart";
 
 interface StatsOverviewProps {
   className?: string;
@@ -230,65 +231,7 @@ export function StatsOverview({
     );
   };
 
-  // 表现对比柱状图组件
-  const PerformanceBarChart = ({ videos }: { videos: TopVideo[] }) => {
-    if (!videos || videos.length === 0) {
-      return <div className="text-gray-500 text-center py-8">暂无数据</div>;
-    }
-
-    const maxPlays = Math.max(...videos.map((video) => video.play_count));
-
-    return (
-      <div className="space-y-4">
-        {videos.map((video) => {
-          const percentage = (video.play_count / maxPlays) * 100;
-
-          return (
-            <div key={video.work_url} className="space-y-2">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center space-x-2">
-                  <a
-                    href={video.work_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm font-medium text-blue-600 hover:text-blue-800 truncate max-w-32 hover:underline"
-                    title="点击打开视频链接"
-                  >
-                    {video.work_url}
-                  </a>
-                  <span className="text-xs text-gray-500">
-                    作者: {video.author}
-                  </span>
-                </div>
-                <div className="text-sm text-gray-600">
-                  {formatNumber(video.play_count)} 播放
-                </div>
-              </div>
-
-              <div className="w-full bg-gray-200 rounded-full h-3 relative overflow-hidden">
-                <div
-                  className="h-3 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-300"
-                  style={{ width: `${Math.max(percentage, 2)}%` }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-              </div>
-
-              <div className="flex justify-between text-xs text-gray-500">
-                <span>
-                  {new Date(video.publish_time).toLocaleDateString("zh-CN", {
-                    month: "short",
-                    day: "numeric",
-                  })}
-                </span>
-                <span>{formatNumber(video.like_count)} 点赞</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
-
+  
   // 趋势线图组件
   const TrendLineChart = ({ data }: { data: TrendData[] }) => {
     if (!data || data.length === 0) {
@@ -469,9 +412,18 @@ export function StatsOverview({
 
         {/* 表现对比柱状图 */}
         <div className="bg-gray-50 rounded-lg p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">
-            热门视频排行
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium text-gray-900">
+              热门视频排行
+            </h3>
+            <a
+              href="/debug/videos"
+              className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+              title="前往热门视频调试页面"
+            >
+              调试 →
+            </a>
+          </div>
           <PerformanceBarChart videos={topVideos} />
         </div>
 
