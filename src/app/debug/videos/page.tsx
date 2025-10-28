@@ -13,9 +13,12 @@ interface DebugLog {
 
 export default function VideosDebugPage() {
   // 状态管理
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    // 获取当前UTC日期（比北京时间晚8小时）
+    const now = new Date();
+    const utcDate = new Date(now.getTime() - 8 * 60 * 60 * 1000);
+    return utcDate.toISOString().split('T')[0];
+  });
   const [displayCount, setDisplayCount] = useState<number>(5);
   const [rawVideos, setRawVideos] = useState<TopVideo[]>([]);
   const [uniqueVideos, setUniqueVideos] = useState<TopVideo[]>([]);
@@ -67,6 +70,8 @@ export default function VideosDebugPage() {
       setLoading(true);
       setError("");
       addLog("info", "开始获取热门视频数据...");
+      addLog("info", `选择的UTC日期: ${selectedDate}`);
+      addLog("info", `对应的北京时间: ${new Date(selectedDate + 'T00:00:00+08:00').toLocaleDateString('zh-CN')}`);
 
       const dateParam = selectedDate ? `&date=${selectedDate}` : '';
       const response = await fetch(
@@ -200,7 +205,7 @@ export default function VideosDebugPage() {
                 {/* 日期选择 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    选择日期
+                    选择日期 <span className="text-xs text-gray-500">(UTC时间)</span>
                   </label>
                   <input
                     type="date"
