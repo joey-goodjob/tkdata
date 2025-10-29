@@ -261,10 +261,7 @@ export class StatsService {
     try {
       // 根据排序字段选择排序列；对于视频榜，支持按播放量或点赞数排序
       const orderColumn = sortBy === "totalLikes" ? "like_count" : "play_count";
-      // 统一业务口径：按北京时间(UTC+8) 的自然日做过滤，避免 DATE() 受数据库会话时区影响
-      // 如果传入 publishDate（格式: YYYY-MM-DD），则构造北京时间的起止区间 [00:00, 次日00:00)
-      // 这样可以保证后端过滤与前端展示一致，不会出现“选19号却出现20号”的跨天错位
-
+      // 直接按UTC日期查询，不做时区转换
       let query = `
         SELECT
           work_title,
@@ -283,44 +280,21 @@ export class StatsService {
       const params: (string | number)[] = [limit];
 
       if (publishDate) {
-        // 以北京时间的自然日为界，构造 UTC 时间范围以便走索引
-        const startBeijing = new Date(`${publishDate}T00:00:00+08:00`);
-        const endBeijing = new Date(startBeijing);
-        endBeijing.setDate(endBeijing.getDate() + 1);
-
-        const startIso: string = startBeijing.toISOString(); // 转为UTC ISO
-        const endIso: string = endBeijing.toISOString();
-
+        // 直接按UTC日期查询
         query += `
-          AND publish_time >= $2::timestamptz
-          AND publish_time < $3::timestamptz
+          AND DATE(publish_time) = $2
         `;
-        params.push(startIso, endIso);
+        params.push(publishDate);
       } else {
-        // 兼容旧逻辑：默认取“昨天（北京时间）的自然日”
-        // 计算北京昨天的 [00:00, 次日00:00) 对应的 UTC 时间
-        const now = new Date();
-        // 使用 Asia/Shanghai 计算昨天 00:00:00 的本地时间，然后转换为 UTC ISO
-        const shanghaiNow = new Date(
-          now.toLocaleString("en-US", { timeZone: "Asia/Shanghai" })
-        );
-        shanghaiNow.setHours(0, 0, 0, 0);
-        shanghaiNow.setDate(shanghaiNow.getDate() - 1);
-        const yyyy = shanghaiNow.getFullYear();
-        const mm = String(shanghaiNow.getMonth() + 1).padStart(2, "0");
-        const dd = String(shanghaiNow.getDate()).padStart(2, "0");
-        const startIso: string = new Date(
-          `${yyyy}-${mm}-${dd}T00:00:00+08:00`
-        ).toISOString();
-        const endDateObj = new Date(`${yyyy}-${mm}-${dd}T00:00:00+08:00`);
-        endDateObj.setDate(endDateObj.getDate() + 1);
-        const endIso: string = endDateObj.toISOString();
+        // 默认查询昨天（UTC）的数据
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().split("T")[0];
 
         query += `
-          AND publish_time >= $2::timestamptz
-          AND publish_time < $3::timestamptz
+          AND DATE(publish_time) = $2
         `;
-        params.push(startIso, endIso);
+        params.push(yesterdayStr);
       }
 
       query += `

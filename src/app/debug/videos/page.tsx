@@ -14,10 +14,8 @@ interface DebugLog {
 export default function VideosDebugPage() {
   // 状态管理
   const [selectedDate, setSelectedDate] = useState<string>(() => {
-    // 获取当前UTC日期（比北京时间晚8小时）
-    const now = new Date();
-    const utcDate = new Date(now.getTime() - 8 * 60 * 60 * 1000);
-    return utcDate.toISOString().split("T")[0];
+    // 直接使用当前UTC日期
+    return new Date().toISOString().split("T")[0];
   });
   const [displayCount, setDisplayCount] = useState<number>(5);
   const [rawVideos, setRawVideos] = useState<TopVideo[]>([]);
@@ -78,13 +76,7 @@ export default function VideosDebugPage() {
       setLoading(true);
       setError("");
       addLog("info", "开始获取热门视频数据...");
-      addLog("info", `选择的UTC日期: ${selectedDate}`);
-      addLog(
-        "info",
-        `对应的北京时间: ${new Date(
-          selectedDate + "T00:00:00+08:00"
-        ).toLocaleDateString("zh-CN")}`
-      );
+      addLog("info", `选择的日期: ${selectedDate} (UTC)`);
 
       const dateParam = selectedDate ? `&date=${selectedDate}` : "";
       const response = await fetch(
@@ -228,8 +220,7 @@ export default function VideosDebugPage() {
                 {/* 日期选择 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    选择日期debug{" "}
-                    <span className="text-xs text-gray-500">(UTC时间)</span>
+                    选择日期debug
                   </label>
                   <input
                     type="date"
@@ -293,6 +284,50 @@ export default function VideosDebugPage() {
                 >
                   导出数据
                 </button>
+              </div>
+            </div>
+
+            {/* SQL查询语句显示 */}
+            <div className="bg-white shadow rounded-lg p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-medium text-gray-900">
+                  🔍 SQL查询语句 (当前日期: {selectedDate})
+                </h2>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(
+                      `SELECT work_title, author, work_url, play_count, like_count, publish_time\nFROM tiktok_videos_raw\nWHERE play_count IS NOT NULL\n  AND play_count > 0\n  AND work_url IS NOT NULL\n  AND DATE(publish_time) = '${selectedDate}'\nORDER BY play_count DESC\nLIMIT 20;`
+                    );
+                    alert('SQL已复制到剪贴板！');
+                  }}
+                  className="text-sm text-blue-600 hover:text-blue-800"
+                >
+                  复制SQL
+                </button>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-lg border">
+                <pre className="text-sm font-mono text-gray-800 whitespace-pre-wrap">
+{`SELECT work_title, author, work_url, play_count, like_count, publish_time
+FROM tiktok_videos_raw
+WHERE play_count IS NOT NULL
+  AND play_count > 0
+  AND work_url IS NOT NULL
+  AND DATE(publish_time) = '${selectedDate}'
+ORDER BY play_count DESC
+LIMIT 20;`}
+                </pre>
+              </div>
+
+              <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="text-sm text-blue-800">
+                  <strong>💡 使用说明：</strong>
+                  <ul className="mt-2 space-y-1 text-sm">
+                    <li>• 上面SQL查询当前选择日期 ({selectedDate}) 的数据</li>
+                    <li>• 可以直接复制到数据库客户端中执行验证</li>
+                    <li>• 查询结果应该与页面显示的数据一致</li>
+                  </ul>
+                </div>
               </div>
             </div>
 
