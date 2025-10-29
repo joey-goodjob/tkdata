@@ -98,20 +98,56 @@ export default function VideosDebugPage() {
         dataCount: data.data?.length,
       });
 
+      // 🔍 详细日志：显示完整的API响应数据
+      addLog("info", `📋 API完整响应数据:`, data);
+
       if (data.success) {
         const raw = data.data || [];
         setRawVideos(raw);
         addLog("info", `原始数据加载完成，共 ${raw.length} 条`);
+
+        // 🔍 详细日志：检查每条数据的时间
+        raw.forEach((video: TopVideo, index: number) => {
+          const publishTime = video.publish_time;
+          const localDate = new Date(publishTime).toISOString().split("T")[0];
+          const utcDate = new Date(publishTime).toISOString().split("T")[0];
+
+          addLog("info", `📅 视频${index + 1}: ${video.author}`, {
+            title: video.title,
+            publish_time: publishTime,
+            local_date: localDate,
+            utc_date: utcDate,
+            play_count: video.play_count
+          });
+        });
 
         // 去重处理
         const unique = removeDuplicateVideos(raw);
         setUniqueVideos(unique);
         addLog("info", `去重处理完成，去重后 ${unique.length} 条`);
 
+        // 🔍 详细日志：检查去重后数据的时间分布
+        const dateCount: Record<string, number> = {};
+        unique.forEach((video) => {
+          const date = new Date(video.publish_time).toISOString().split("T")[0];
+          dateCount[date] = (dateCount[date] || 0) + 1;
+        });
+        addLog("info", `📊 去重后数据日期分布:`, dateCount);
+
         // 设置显示数据
         const display = unique.slice(0, displayCount);
         setDisplayVideos(display);
         addLog("info", `设置显示数据，显示前 ${display.length} 条`);
+
+        // 🔍 详细日志：检查显示数据的时间
+        display.forEach((video, index) => {
+          addLog("info", `🎯 显示视频${index + 1}:`, {
+            author: video.author,
+            publish_time: video.publish_time,
+            display_date: new Date(video.publish_time).toISOString().split("T")[0],
+            play_count: video.play_count
+          });
+        });
       } else {
         throw new Error(data.error?.message || "获取数据失败");
       }
@@ -159,14 +195,14 @@ export default function VideosDebugPage() {
   // 导出数据
   const exportData = () => {
     const csvContent = [
-      ["标题", "作者", "视频链接", "播放量", "点赞数", "发布时间", "排名"],
+      ["标题", "作者", "视频链接", "播放量", "点赞数", "发布时间(UTC)", "排名"],
       ...displayVideos.map((video, index) => [
         video.title,
         video.author,
         video.work_url,
         video.play_count,
         video.like_count,
-        new Date(video.publish_time).toLocaleString("zh-CN"),
+        new Date(video.publish_time).toISOString(),
         index + 1,
       ]),
     ]
@@ -422,9 +458,7 @@ LIMIT 20;`}
                             {formatNumber(video.like_count)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            {new Date(video.publish_time).toLocaleDateString(
-                              "zh-CN"
-                            )}
+                            {new Date(video.publish_time).toISOString().split("T")[0]}
                           </td>
                           <td className="px-6 py-4 text-sm">
                             <a
@@ -514,9 +548,7 @@ LIMIT 20;`}
                       </div>
                       <div className="text-xs text-gray-500 mt-1">
                         {formatNumber(video.like_count)} 点赞 •{" "}
-                        {new Date(video.publish_time).toLocaleDateString(
-                          "zh-CN"
-                        )}
+                        {new Date(video.publish_time).toISOString().split("T")[0]}
                       </div>
                     </div>
                   ))}

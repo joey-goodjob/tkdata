@@ -16,7 +16,10 @@ const formatNumber = (num: number | undefined | null): string => {
   return num.toString();
 };
 
-export function PerformanceBarChart({ videos, className = "" }: PerformanceBarChartProps) {
+export function PerformanceBarChart({
+  videos,
+  className = "",
+}: PerformanceBarChartProps) {
   if (!videos || videos.length === 0) {
     return (
       <div className={`text-gray-500 text-center py-8 ${className}`}>
@@ -62,13 +65,7 @@ export function PerformanceBarChart({ videos, className = "" }: PerformanceBarCh
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
             </div>
 
-            <div className="flex justify-between text-xs text-gray-500">
-              <span>
-                {new Date(video.publish_time).toLocaleDateString("zh-CN", {
-                  month: "short",
-                  day: "numeric",
-                })}
-              </span>
+            <div className="flex justify-end text-xs text-gray-500">
               <span>{formatNumber(video.like_count)} 点赞</span>
             </div>
           </div>
