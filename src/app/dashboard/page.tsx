@@ -12,14 +12,27 @@ export default function DashboardPage() {
   const [statsOverviewLoaded, setStatsOverviewLoaded] = useState(false);
 
   // 🔄 新增：页面级别的日期状态管理
-  const [selectedDate, setSelectedDate] = useState<string>(
-    // 使用19号作为默认日期，因为我们知道19号有数据
-    "2025-10-19"
-  );
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    // 优先从 localStorage 读取用户上次选择的日期
+    if (typeof window !== 'undefined') {
+      const savedDate = localStorage.getItem('dashboard-selected-date');
+      if (savedDate) {
+        return savedDate;
+      }
+    }
+    // 如果没有保存的日期，使用当前日期的前一天
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    return yesterday.toISOString().split("T")[0];
+  });
 
   // 🔄 处理日期变化的回调
   const handleDateChange = (newDate: string) => {
     setSelectedDate(newDate);
+    // 保存用户选择的日期到 localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('dashboard-selected-date', newDate);
+    }
   };
 
   useEffect(() => {

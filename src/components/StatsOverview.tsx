@@ -21,7 +21,7 @@ function removeDuplicateVideos(videos: TopVideo[]): TopVideo[] {
 
   const videoMap = new Map<string, TopVideo>();
 
-  videos.forEach(video => {
+  videos.forEach((video) => {
     const key = video.work_url;
 
     // 如果已存在相同的 work_url，比较播放量，保留播放量更高的
@@ -36,7 +36,9 @@ function removeDuplicateVideos(videos: TopVideo[]): TopVideo[] {
   });
 
   // 转换为数组并按播放量降序排序
-  return Array.from(videoMap.values()).sort((a, b) => b.play_count - a.play_count);
+  return Array.from(videoMap.values()).sort(
+    (a, b) => b.play_count - a.play_count
+  );
 }
 
 export function StatsOverview({
@@ -78,7 +80,7 @@ export function StatsOverview({
 
         console.log("  → 加载排行数据...");
         // 使用传入的日期，如果没有则使用默认逻辑
-        const dateParam = selectedDate ? `&date=${selectedDate}` : '';
+        const dateParam = selectedDate ? `&date=${selectedDate}` : "";
         // 🔧 请求20条数据，用于前端去重
         const rankingsResponse = await fetch(
           `/api/stats?type=rankings&sortBy=totalPlays&limit=20${dateParam}`
@@ -92,7 +94,10 @@ export function StatsOverview({
           const top5Videos = uniqueVideos.slice(0, 5);
           console.log("    🔄 ���重后数据条数:", uniqueVideos.length);
           console.log("    🎯 最终显示条数:", top5Videos.length);
-          console.log("    📋 最终数据:", top5Videos.map(v => ({ title: v.title, plays: v.play_count })));
+          console.log(
+            "    📋 最终数据:",
+            top5Videos.map((v) => ({ title: v.title, plays: v.play_count }))
+          );
           setTopVideos(top5Videos);
           console.log("  ✅ 排行数据加载完成");
         }
@@ -231,7 +236,6 @@ export function StatsOverview({
     );
   };
 
-  
   // 趋势线图组件
   const TrendLineChart = ({ data }: { data: TrendData[] }) => {
     if (!data || data.length === 0) {
@@ -413,9 +417,7 @@ export function StatsOverview({
         {/* 表现对比柱状图 */}
         <div className="bg-gray-50 rounded-lg p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-gray-900">
-              热门视频排行
-            </h3>
+            <h3 className="text-lg font-medium text-gray-900">热门视频排行</h3>
             <a
               href="/debug/videos"
               className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
@@ -435,7 +437,7 @@ export function StatsOverview({
       </div>
 
       {/* 统计卡片 */}
-      {dashboardStats && (
+      {/* {dashboardStats && (
         <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-blue-50 rounded-lg p-4 text-center">
             <div className="text-2xl font-bold text-blue-600">
@@ -465,7 +467,7 @@ export function StatsOverview({
             <div className="text-sm text-yellow-600">总点赞数</div>
           </div>
         </div>
-      )}
+      )} */}
     </div>
   );
 }
